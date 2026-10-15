@@ -1,7 +1,7 @@
 // Port of mini3d/shape.{h,c} from the Playdate SDK's C 3D library example.
 // Reference counting is replaced by the garbage collector.
 
-namespace Lib3D.Mini3D;
+namespace Mini3D;
 
 public struct Face3D
 {

@@ -18,6 +18,9 @@
       SharpDateBuildDevice    Build pdex.bin for the device (default: true when arm-none-eabi-gcc is found)
       SharpDateBuildSimulator Build pdex.dylib/.so for the Simulator (default: true)
       SharpDateUniversalSimulator  macOS: build x86_64+arm64 Simulator code (default: true for Release)
+      PlaydateSerialPort      Device used by -t:Deploy (default: the first Playdate found)
+
+    Extra targets:  -t:Run (open in the Simulator)   -t:Deploy (install and run on a connected Playdate)
   -->
 
   <PropertyGroup>
@@ -189,6 +192,7 @@
     <Exec Command="&quot;$(SharpDateArmGcc)&quot; -c $(_SharpDateDevFlags) &quot;$(PlaydateSDKPath)C_API/buildsupport/setup.c&quot; -o &quot;$(_SharpDateDevDir)setup.o&quot;" />
     <Exec Command="&quot;$(SharpDateArmGcc)&quot; -c $(_SharpDateMcu) &quot;$(_SharpDateRuntimeDir)sdrt_thumb2.S&quot; -o &quot;$(_SharpDateDevDir)sdrt_thumb2.o&quot;" />
     <Exec Command="&quot;$(SharpDateArmGcc)&quot; -g3 &quot;$(_SharpDateDevDir)setup.o&quot; &quot;$(_SharpDateDevDir)sdrt.o&quot; &quot;$(_SharpDateDevDir)sdrt_thumb2.o&quot; &quot;$(_SharpDateDevDir)game.o&quot; -nostartfiles $(_SharpDateMcu) -T&quot;$(_SharpDateRuntimeDir)link_map.ld&quot; -Wl,-Map=&quot;$(_SharpDateDevDir)pdex.map&quot;,--cref,--gc-sections,--no-warn-mismatch,--emit-relocs -o &quot;$(_SharpDateDevDir)pdex.elf&quot;" />
+    <Exec Command="python3 &quot;$(SharpDateRoot)tools/fixup_vfp.py&quot; &quot;$(_SharpDateDevDir)pdex.elf&quot;" />
     <CallTarget Targets="_SharpDateCheckDoubles" />
   </Target>
 
@@ -197,7 +201,7 @@
     the device. Warn about methods that contain them so they can be changed to float.
   -->
   <Target Name="_SharpDateCheckDoubles" Condition="'$(SharpDateCheckDoubles)' != 'false'">
-    <Exec Command="&quot;$(_SharpDateArmObjdump)&quot; -d --no-show-raw-insn &quot;$(_SharpDateObjDir)device/game.o&quot; | awk '/^[0-9a-f]+ &lt;/ { fn = $2 } /\.f64|vcvt\.f32\.f64|vcvt\.f64/ { if (!(fn in seen)) { seen[fn] = 1; print fn } }'"
+    <Exec Command="&quot;$(_SharpDateArmObjdump)&quot; -d --no-show-raw-insn &quot;$(_SharpDateObjDir)device/pdex.elf&quot; | awk '/^[0-9a-f]+ &lt;/ { fn = $2 } /\.f64|vcvt\.f32\.f64|vcvt\.f64/ { if (!(fn in seen)) { seen[fn] = 1; print fn } }'"
           ConsoleToMSBuild="true" StandardOutputImportance="low" IgnoreExitCode="true">
       <Output TaskParameter="ConsoleOutput" ItemName="_SharpDateDoubleMethods" />
     </Exec>
@@ -232,6 +236,18 @@
   <Target Name="Run" DependsOnTargets="Build">
     <Exec Condition="$(_SharpDateIsMac)" Command="open -a &quot;$(PlaydateSDKPath)bin/Playdate Simulator.app&quot; &quot;$(PlaydatePdxPath)&quot;" />
     <Exec Condition="$(_SharpDateIsLinux)" Command="&quot;$(PlaydateSDKPath)bin/PlaydateSimulator&quot; &quot;$(PlaydatePdxPath)&quot; &amp;" />
+  </Target>
+
+  <!--
+    dotnet build -t:Deploy  builds, installs the game on a Playdate connected over USB and launches it.
+    Set PlaydateSerialPort to pick a device (default: the first one found).
+  -->
+  <Target Name="Deploy" DependsOnTargets="Build">
+    <Error Condition="'$(SharpDateBuildDevice)' != 'true'" Text="Deploying needs a device build: install the Arm GNU toolchain (arm-none-eabi-gcc)." />
+    <PropertyGroup>
+      <_SharpDateSerialArg Condition="'$(PlaydateSerialPort)' != ''">--serial &quot;$(PlaydateSerialPort)&quot;</_SharpDateSerialArg>
+    </PropertyGroup>
+    <Exec Command="python3 &quot;$(SharpDateRoot)tools/deploy.py&quot; &quot;$(PlaydatePdxPath)&quot; $(_SharpDateSerialArg) $(SharpDateDeployArgs)" />
   </Target>
 
   <Target Name="_SharpDateClean" AfterTargets="Clean">

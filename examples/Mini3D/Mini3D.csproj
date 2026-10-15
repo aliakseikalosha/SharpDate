@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    mini3d: a small 3D engine (math, scene graph, 1-bit rasterizer with z-buffer and ordering tables),
+    ported from the Playdate SDK's C "3D library" example. A plain library, not a game: it is used by
+    examples/Lib3D (driven from Lua) and examples/Lib3DCSharp (pure C#).
+  -->
+  <PropertyGroup>
+    <IsPlaydateGame>false</IsPlaydateGame>
+  </PropertyGroup>
+</Project>

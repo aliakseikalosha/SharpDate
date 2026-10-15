@@ -5,7 +5,7 @@
 
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Lib3D.Mini3D;
+using Mini3D;
 
 namespace Lib3D;
 
@@ -80,8 +80,7 @@ public static unsafe class LuaGlue
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
     private static int SceneDraw(void* L)
     {
-        GetScene(1).Draw(Graphics.GetFramePointer(), PD.LCD_ROWSIZE);
-        Graphics.MarkUpdatedRows(0, PD.LCD_ROWS - 1);
+        GetScene(1).Draw();
         return 0;
     }
 
@@ -203,30 +202,10 @@ public static unsafe class LuaGlue
     private static int NodeScaleBy(void* L)
     {
         Scene3DNode node = GetSceneNode(1);
-        Matrix3D xform = node.Transform;
-        float sx, sy, sz;
-
         if (Lua.ArgCount > 2)
-        {
-            sx = Lua.GetArgFloat(2);
-            sy = Lua.GetArgFloat(3);
-            sz = Lua.GetArgFloat(4);
-        }
+            node.ScaleBy(Lua.GetArgFloat(2), Lua.GetArgFloat(3), Lua.GetArgFloat(4));
         else
-        {
-            sx = sy = sz = Lua.GetArgFloat(2);
-        }
-
-        xform.IsIdentity = false;
-        xform.M00 *= sx; xform.M10 *= sx; xform.M20 *= sx;
-        xform.M01 *= sy; xform.M11 *= sy; xform.M21 *= sy;
-        xform.M02 *= sz; xform.M12 *= sz; xform.M22 *= sz;
-        xform.Dx *= sx;
-        xform.Dy *= sy;
-        xform.Dz *= sz;
-        xform.Inverting = sx * sy * sz < 0;
-
-        node.SetTransform(xform);
+            node.ScaleBy(Lua.GetArgFloat(2));
         return 0;
     }
 
@@ -240,50 +219,21 @@ public static unsafe class LuaGlue
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
     private static int NodeSetFilled(void* L)
     {
-        Scene3DNode node = GetSceneNode(1);
-        RenderStyle style = node.GetRenderStyle();
-        if (Lua.GetArgBool(2))
-            style |= RenderStyle.Filled;
-        else
-            style &= ~RenderStyle.Filled;
-        node.SetRenderStyle(style);
+        GetSceneNode(1).SetFilled(Lua.GetArgBool(2));
         return 0;
     }
 
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
     private static int NodeSetWireframeMode(void* L)
     {
-        Scene3DNode node = GetSceneNode(1);
-        int mode = Lua.GetArgInt(2);
-        RenderStyle style = node.GetRenderStyle();
-
-        if (mode > 0)
-        {
-            style |= RenderStyle.Wireframe;
-            if (mode == 1)
-                style &= ~RenderStyle.WireframeBack;
-            else
-                style |= RenderStyle.WireframeBack;
-        }
-        else
-        {
-            style &= ~RenderStyle.Wireframe;
-        }
-
-        node.SetRenderStyle(style);
+        GetSceneNode(1).SetWireframeMode(Lua.GetArgInt(2));
         return 0;
     }
 
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
     private static int NodeSetWireframeColor(void* L)
     {
-        Scene3DNode node = GetSceneNode(1);
-        RenderStyle style = node.GetRenderStyle();
-        if (Lua.GetArgInt(2) != 0)
-            style |= RenderStyle.WireframeWhite;
-        else
-            style &= ~RenderStyle.WireframeWhite;
-        node.SetRenderStyle(style);
+        GetSceneNode(1).SetWireframeColor(Lua.GetArgInt(2) != 0);
         return 0;
     }
 
@@ -429,33 +379,7 @@ public static unsafe class LuaGlue
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
     private static int MatrixNewRotation(void* L)
     {
-        const float Pi = 3.14159265358979323846f;
-
-        float angle = Lua.GetArgFloat(1);
-        float c = MathF.Cos(angle * Pi / 180);
-        float s = MathF.Sin(angle * Pi / 180);
-        float x = Lua.GetArgFloat(2);
-        float y = Lua.GetArgFloat(3);
-        float z = Lua.GetArgFloat(4);
-
-        float d = MathF.Sqrt(x * x + y * y + z * z);
-        x /= d;
-        y /= d;
-        z /= d;
-
-        Matrix3D p = default;
-        p.IsIdentity = false;
-        p.Inverting = false;
-        p.M00 = c + x * x * (1 - c);
-        p.M01 = x * y * (1 - c) - z * s;
-        p.M02 = x * z * (1 - c) + y * s;
-        p.M10 = y * x * (1 - c) + z * s;
-        p.M11 = c + y * y * (1 - c);
-        p.M12 = y * z * (1 - c) - x * s;
-        p.M20 = z * x * (1 - c) - y * s;
-        p.M21 = z * y * (1 - c) + x * s;
-        p.M22 = c + z * z * (1 - c);
-
+        Matrix3D p = Matrix3D.MakeRotation(Lua.GetArgFloat(1), Lua.GetArgFloat(2), Lua.GetArgFloat(3), Lua.GetArgFloat(4));
         Lua.PushManagedObject(new MatrixObject(p), MatrixClass);
         return 1;
     }

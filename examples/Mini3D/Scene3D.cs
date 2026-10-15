@@ -1,7 +1,7 @@
 // Port of mini3d/scene.{h,c} from the Playdate SDK's C 3D library example.
 // Linked lists of the C version become List<T>/arrays; faces refer to points by index.
 
-namespace Lib3D.Mini3D;
+namespace Mini3D;
 
 [Flags]
 public enum RenderStyle
@@ -96,6 +96,54 @@ public sealed class Scene3DNode
     {
         UseZBuffer = flag;
         NeedsUpdate = true;
+    }
+
+    public void TranslateBy(float dx, float dy, float dz) => AddTransform(Matrix3D.MakeTranslate(dx, dy, dz));
+
+    /// <summary>Scales the node's current transform (negative factors mirror it).</summary>
+    public void ScaleBy(float sx, float sy, float sz)
+    {
+        Matrix3D xform = Transform;
+        xform.IsIdentity = false;
+        xform.M00 *= sx; xform.M10 *= sx; xform.M20 *= sx;
+        xform.M01 *= sy; xform.M11 *= sy; xform.M21 *= sy;
+        xform.M02 *= sz; xform.M12 *= sz; xform.M22 *= sz;
+        xform.Dx *= sx;
+        xform.Dy *= sy;
+        xform.Dz *= sz;
+        xform.Inverting = sx * sy * sz < 0;
+        SetTransform(xform);
+    }
+
+    public void ScaleBy(float s) => ScaleBy(s, s, s);
+
+    /// <summary>Draw filled faces (the default).</summary>
+    public void SetFilled(bool filled)
+    {
+        RenderStyle style = GetRenderStyle();
+        SetRenderStyle(filled ? style | RenderStyle.Filled : style & ~RenderStyle.Filled);
+    }
+
+    /// <summary>0 = no wireframe, 1 = front faces only, 2 = front and back faces.</summary>
+    public void SetWireframeMode(int mode)
+    {
+        RenderStyle style = GetRenderStyle();
+        if (mode > 0)
+        {
+            style |= RenderStyle.Wireframe;
+            style = mode == 1 ? style & ~RenderStyle.WireframeBack : style | RenderStyle.WireframeBack;
+        }
+        else
+        {
+            style &= ~RenderStyle.Wireframe;
+        }
+        SetRenderStyle(style);
+    }
+
+    public void SetWireframeColor(bool white)
+    {
+        RenderStyle style = GetRenderStyle();
+        SetRenderStyle(white ? style | RenderStyle.WireframeWhite : style & ~RenderStyle.WireframeWhite);
     }
 
     public void AddShape(Shape3D shape, Matrix3D transform)
@@ -572,6 +620,45 @@ public sealed unsafe class Scene3D
             if ((style & RenderStyle.Wireframe) != 0)
                 DrawWireframe(shape, bitmap, rowstride);
         }
+    }
+
+    // Camera parameters kept separately so each can be changed on its own (as the Lua API does).
+    private Point3D _cameraOrigin = new Point3D(0, 0, -1);
+    private Point3D _cameraTarget = new Point3D(0, 0, 0);
+    private float _cameraScale = 1.0f;
+    private Vector3D _cameraUp = new Vector3D(0, -1, 0);
+
+    public Point3D CameraOrigin
+    {
+        get => _cameraOrigin;
+        set { _cameraOrigin = value; ApplyCamera(); }
+    }
+
+    public Point3D CameraTarget
+    {
+        get => _cameraTarget;
+        set { _cameraTarget = value; ApplyCamera(); }
+    }
+
+    public float CameraScale
+    {
+        get => _cameraScale;
+        set { _cameraScale = value; ApplyCamera(); }
+    }
+
+    public Vector3D CameraUp
+    {
+        get => _cameraUp;
+        set { _cameraUp = value; ApplyCamera(); }
+    }
+
+    private void ApplyCamera() => SetCamera(_cameraOrigin, _cameraTarget, _cameraScale, _cameraUp);
+
+    /// <summary>Draws the scene into the Playdate frame buffer.</summary>
+    public void Draw()
+    {
+        Draw(Playdate.Graphics.GetFramePointer(), Playdate.PD.LCD_ROWSIZE);
+        Playdate.Graphics.MarkUpdatedRows(0, Playdate.PD.LCD_ROWS - 1);
     }
 
     public void Draw(byte* bitmap, int rowstride)

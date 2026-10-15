@@ -1,0 +1,4 @@
+name=3D Library (C# only)
+author=SharpDate
+description=The mini3d engine driven entirely from C#: the SDK 3D example scenes without Lua
+bundleID=dev.sharpdate.lib3dcsharp

@@ -1,6 +1,6 @@
 // Port of mini3d/3dmath.{h,c} from the Playdate SDK's C 3D library example.
 
-namespace Lib3D.Mini3D;
+namespace Mini3D;
 
 public struct Point3D
 {
@@ -137,6 +137,30 @@ public struct Matrix3D
         }
 
         return m;
+    }
+
+    /// <summary>Rotation of <paramref name="angleDegrees"/> around the axis (x, y, z).</summary>
+    public static Matrix3D MakeRotation(float angleDegrees, float x, float y, float z)
+    {
+        const float Pi = 3.14159265358979323846f;
+        float c = MathF.Cos(angleDegrees * Pi / 180);
+        float s = MathF.Sin(angleDegrees * Pi / 180);
+        float d = MathF.Sqrt(x * x + y * y + z * z);
+        x /= d;
+        y /= d;
+        z /= d;
+
+        Matrix3D p = default;
+        p.M00 = c + x * x * (1 - c);
+        p.M01 = x * y * (1 - c) - z * s;
+        p.M02 = x * z * (1 - c) + y * s;
+        p.M10 = y * x * (1 - c) + z * s;
+        p.M11 = c + y * y * (1 - c);
+        p.M12 = y * z * (1 - c) - x * s;
+        p.M20 = z * x * (1 - c) - y * s;
+        p.M21 = z * y * (1 - c) + x * s;
+        p.M22 = c + z * z * (1 - c);
+        return p;
     }
 
     public static Point3D Apply(in Matrix3D m, in Point3D p)

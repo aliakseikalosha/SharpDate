@@ -4,7 +4,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace Lib3D.Mini3D;
+namespace Mini3D;
 
 public struct RowRange
 {

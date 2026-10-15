@@ -34,6 +34,13 @@ SECTIONS
 		*(.rodata*)
 
 		KEEP(*(.eh_frame*))
+
+		/* Space for tools/fixup_vfp.py to place single-precision replacements
+		   of the JIT's occasional vmov.f64 register moves. */
+		. = ALIGN(4);
+		__sharpdate_veneers_start = .;
+		. = . + 1536;
+		__sharpdate_veneers_end = .;
 	}
 
 	.data :
