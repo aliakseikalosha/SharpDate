@@ -4,6 +4,8 @@ obj/
 *-capture.png
 .DS_Store
 .vs/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/extensions.json
 .idea/
 *.user

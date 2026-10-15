@@ -1,0 +1,86 @@
+{
+  // SharpDate tasks. Run them with "Tasks: Run Task" (or Cmd/Ctrl+Shift+B for the default build).
+  // Each task asks which project to use.
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "project",
+      "type": "pickString",
+      "description": "SharpDate project",
+      "default": "examples/Demos/Demos.csproj",
+      "options": [
+        "examples/Demos/Demos.csproj",
+        "examples/HelloWorld/HelloWorld.csproj",
+        "examples/Life/Life.csproj",
+        "examples/Tilemap/Tilemap.csproj",
+        "examples/BachMidi/BachMidi.csproj",
+        "examples/Json/Json.csproj",
+        "examples/SpriteGame/SpriteGame.csproj",
+        "examples/SpriteCollisions/SpriteCollisions.csproj",
+        "examples/Networking/Networking.csproj",
+        "examples/Lib3DCSharp/Lib3DCSharp.csproj",
+        "examples/Lib3D/Lib3D.csproj",
+        "examples/Exposure/Exposure.csproj",
+        "examples/Array/Array.csproj",
+        "examples/Particles/Particles.csproj",
+        "tests/RuntimeTests/RuntimeTests.csproj"
+      ]
+    },
+    {
+      "id": "configuration",
+      "type": "pickString",
+      "description": "Configuration",
+      "default": "Debug",
+      "options": ["Debug", "Release"]
+    }
+  ],
+  "tasks": [
+    {
+      "label": "SharpDate: Build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${input:project}", "-c", "${input:configuration}"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "SharpDate: Run in Simulator",
+      "detail": "Build and open the game in the Playdate Simulator",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${input:project}", "-c", "${input:configuration}", "-t:Run"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "SharpDate: Install and run on Playdate",
+      "detail": "Release build, copy to a USB-connected Playdate (unlocked) and launch it",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${input:project}", "-c", "Release", "-t:Deploy"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "SharpDate: Build all",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "SharpDate.sln", "-c", "${input:configuration}"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "SharpDate: Runtime tests",
+      "detail": "Build tests/RuntimeTests and run it in the mock host (no Simulator needed)",
+      "type": "process",
+      "command": "python3",
+      "args": ["${workspaceFolder}/tests/run-tests.py"],
+      "windows": { "command": "py", "args": ["-3", "${workspaceFolder}/tests/run-tests.py"] },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "SharpDate: Clean",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["clean", "${input:project}", "-c", "${input:configuration}"],
+      "problemMatcher": []
+    }
+  ]
+}

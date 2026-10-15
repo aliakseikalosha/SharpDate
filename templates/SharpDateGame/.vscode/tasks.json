@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Run in Simulator",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "-t:Run"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Install and run on Playdate",
+      "detail": "Release build, copy to a USB-connected Playdate (unlocked) and launch it",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "-c", "Release", "-t:Deploy"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Clean",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["clean"],
+      "problemMatcher": []
+    }
+  ]
+}
