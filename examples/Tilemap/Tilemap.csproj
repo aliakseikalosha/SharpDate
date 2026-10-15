@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PlaydateGameName>Tilemap</PlaydateGameName>
+    <!-- font-table-20-20.png comes from the SDK's C example -->
+    <PlaydateSdkExampleAssets>Tilemap/Source</PlaydateSdkExampleAssets>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PlaydateGameName>Exposure</PlaydateGameName>
+    <!-- main.lua comes from the SDK's C example; the C# side adds image:popcount() -->
+    <PlaydateSdkExampleAssets>Exposure/Source</PlaydateSdkExampleAssets>
+  </PropertyGroup>
+</Project>

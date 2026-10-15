@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PlaydateGameName>SpriteGame</PlaydateGameName>
+    <!-- images come from the SDK's C example (its main.lua is unused: this is a pure C# game) -->
+    <PlaydateSdkExampleAssets>Sprite Game/Source</PlaydateSdkExampleAssets>
+  </PropertyGroup>
+</Project>

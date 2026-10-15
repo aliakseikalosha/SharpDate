@@ -795,6 +795,10 @@ SD_EXPORT uint64_t sd_uldiv(uint64_t a, uint64_t b) { return a / b; }
 SD_EXPORT uint64_t sd_ulmod(uint64_t a, uint64_t b) { return a % b; }
 
 SD_EXPORT int64_t RhpLMul(int64_t a, int64_t b) { return a * b; }
+// 64-bit shifts by a variable count (C# masks the count to 0..63).
+SD_EXPORT int64_t RhpLLsh(int64_t v, int32_t s) { return (int64_t)((uint64_t)v << (s & 63)); }
+SD_EXPORT int64_t RhpLRsh(int64_t v, int32_t s) { return v >> (s & 63); }
+SD_EXPORT uint64_t RhpLRsz(uint64_t v, int32_t s) { return v >> (s & 63); }
 SD_EXPORT float RhpLng2Flt(int64_t v) { return (float)v; }
 SD_EXPORT float RhpULng2Flt(uint64_t v) { return (float)v; }
 SD_EXPORT double RhpLng2Dbl(int64_t v) { return (double)v; }

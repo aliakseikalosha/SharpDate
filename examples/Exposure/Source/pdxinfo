@@ -1,0 +1,4 @@
+name=Exposure C#
+author=SharpDate
+description=A C# function called from Lua that counts white pixels in an image (port of the SDK's C example)
+bundleID=dev.sharpdate.exposure

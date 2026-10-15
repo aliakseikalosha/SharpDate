@@ -1,0 +1,4 @@
+name=JSON C#
+author=SharpDate
+description=Streaming JSON decoding with callbacks (port of the SDK's C example)
+bundleID=dev.sharpdate.json

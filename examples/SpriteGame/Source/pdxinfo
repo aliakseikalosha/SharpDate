@@ -1,0 +1,4 @@
+name=Sprite Game C#
+author=SharpDate
+description=A simple shoot-em-up built entirely in C# (port of the SDK's C example)
+bundleID=dev.sharpdate.spritegame

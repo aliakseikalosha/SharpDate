@@ -1,0 +1,4 @@
+name=bach.mid C#
+author=SharpDate
+description=Plays a MIDI file on a sampled piano instrument (port of the SDK's C example)
+bundleID=dev.sharpdate.bachmidi

@@ -1,0 +1,4 @@
+name=Networking C#
+author=SharpDate
+description=HTTP and TCP requests to a local test server (port of the SDK's C example)
+bundleID=dev.sharpdate.networking

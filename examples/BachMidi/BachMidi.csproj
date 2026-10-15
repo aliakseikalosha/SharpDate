@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PlaydateGameName>BachMidi</PlaydateGameName>
+    <!-- bach.mid and piano.wav come from the SDK's C example -->
+    <PlaydateSdkExampleAssets>bach.mid/Source</PlaydateSdkExampleAssets>
+  </PropertyGroup>
+</Project>

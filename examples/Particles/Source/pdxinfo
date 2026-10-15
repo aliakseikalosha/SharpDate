@@ -1,0 +1,4 @@
+name=Particles C#
+author=SharpDate
+description=A particle system written in C#, driven from Lua (port of the SDK's C example)
+bundleID=dev.sharpdate.particles

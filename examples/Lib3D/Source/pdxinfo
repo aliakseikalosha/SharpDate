@@ -1,0 +1,4 @@
+name=3D Library C#
+author=SharpDate
+description=A small 3D engine in C# exposed to Lua (port of the SDK's C 3D library example)
+bundleID=dev.sharpdate.lib3d

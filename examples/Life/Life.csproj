@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PlaydateGameName>Life</PlaydateGameName>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PlaydateGameName>Particles</PlaydateGameName>
+    <!-- main.lua, snowflake images and the font come from the SDK's C example -->
+    <PlaydateSdkExampleAssets>Particles/Source</PlaydateSdkExampleAssets>
+  </PropertyGroup>
+</Project>

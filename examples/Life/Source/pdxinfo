@@ -1,0 +1,4 @@
+name=Life C#
+author=SharpDate
+description=Conway's Game of Life, operating directly on the frame buffer (port of the SDK's C example)
+bundleID=dev.sharpdate.life

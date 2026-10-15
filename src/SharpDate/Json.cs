@@ -173,12 +173,19 @@ namespace Playdate
 
         private static void FreeDecoder(JsonHandler handler, JsonDecoder* decoder)
         {
+            // decoder is our allocation; the handler may point at the runtime's copy by now.
             GCHandle.FromIntPtr((IntPtr)decoder->userdata).Free();
             handler.Decoder = null;
             NativeMemory.Free(decoder);
         }
 
-        private static JsonHandler HandlerOf(JsonDecoder* decoder) => (JsonHandler)GCHandle.FromIntPtr((IntPtr)decoder->userdata).Target;
+        // The runtime passes callbacks its own copy of the decoder (whose path it keeps updated).
+        private static JsonHandler HandlerOf(JsonDecoder* decoder)
+        {
+            var handler = (JsonHandler)GCHandle.FromIntPtr((IntPtr)decoder->userdata).Target;
+            handler.Decoder = decoder;
+            return handler;
+        }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static void DecodeErrorCallback(JsonDecoder* decoder, byte* error, int line) => HandlerOf(decoder).DecodeError(Utf8.ToString(error), line);

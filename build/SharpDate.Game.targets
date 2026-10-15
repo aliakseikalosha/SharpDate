@@ -12,6 +12,8 @@
       PlaydateBundleId        pdxinfo bundleID when the project has no Source/pdxinfo
       PlaydateAuthor, PlaydateDescription, PlaydateVersion
       PlaydateSourceDir       Asset folder copied into the pdx (default: ./Source)
+      PlaydateExtraSourceDir  Additional asset folder copied first (files in PlaydateSourceDir win);
+                              the examples use it to take assets from the SDK's C examples
       PlaydateSDKPath         Playdate SDK (default: $PLAYDATE_SDK_PATH, ~/.Playdate/config, ~/Developer/PlaydateSDK)
       SharpDateBuildDevice    Build pdex.bin for the device (default: true when arm-none-eabi-gcc is found)
       SharpDateBuildSimulator Build pdex.dylib/.so for the Simulator (default: true)
@@ -41,6 +43,8 @@
     <PlaydateSDKPath Condition="'$(PlaydateSDKPath)' == '' and $(_SharpDateIsWindows)">$(USERPROFILE)\Documents\PlaydateSDK</PlaydateSDKPath>
     <PlaydateSDKPath>$([MSBuild]::EnsureTrailingSlash('$(PlaydateSDKPath)'))</PlaydateSDKPath>
     <_SharpDatePdc>$(PlaydateSDKPath)bin/pdc</_SharpDatePdc>
+    <!-- Examples take their assets from the SDK's C example of the same name. -->
+    <PlaydateExtraSourceDir Condition="'$(PlaydateExtraSourceDir)' == '' and '$(PlaydateSdkExampleAssets)' != ''">$(PlaydateSDKPath)C_API/Examples/$(PlaydateSdkExampleAssets)</PlaydateExtraSourceDir>
     <_SharpDatePdc Condition="$(_SharpDateIsWindows)">$(PlaydateSDKPath)bin\pdc.exe</_SharpDatePdc>
 
     <!-- Toolchains -->
@@ -207,9 +211,12 @@
           Condition="'$(IsPlaydateGame)' == 'true'"
           DependsOnTargets="_SharpDateLinkSimulator;_SharpDateLinkDevice">
     <ItemGroup>
+      <_SharpDateExtraAsset Include="$(PlaydateExtraSourceDir)/**/*" Exclude="$(PlaydateExtraSourceDir)/pdxinfo" Condition="'$(PlaydateExtraSourceDir)' != '' and Exists('$(PlaydateExtraSourceDir)')" />
       <_SharpDateAsset Include="$(PlaydateSourceDir)/**/*" Condition="Exists('$(PlaydateSourceDir)')" />
     </ItemGroup>
+    <Error Condition="'$(PlaydateExtraSourceDir)' != '' and !Exists('$(PlaydateExtraSourceDir)')" Text="Asset folder '$(PlaydateExtraSourceDir)' not found." />
     <RemoveDir Directories="$(_SharpDateStageDir)" />
+    <Copy SourceFiles="@(_SharpDateExtraAsset)" DestinationFiles="@(_SharpDateExtraAsset->'$(_SharpDateStageDir)%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(_SharpDateAsset)" DestinationFiles="@(_SharpDateAsset->'$(_SharpDateStageDir)%(RecursiveDir)%(Filename)%(Extension)')" />
     <WriteLinesToFile Condition="!Exists('$(PlaydateSourceDir)/pdxinfo')"
                       File="$(_SharpDateStageDir)pdxinfo" Overwrite="true"

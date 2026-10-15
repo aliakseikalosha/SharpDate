@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PlaydateGameName>Lib3D</PlaydateGameName>
+    <!-- The Lua scenes (main.lua, knot.lua, ...) come from the SDK's C example -->
+    <PlaydateSdkExampleAssets>3D library/Source</PlaydateSdkExampleAssets>
+  </PropertyGroup>
+</Project>

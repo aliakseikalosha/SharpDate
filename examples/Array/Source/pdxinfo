@@ -1,0 +1,4 @@
+name=Array C#
+author=SharpDate
+description=A C# class exposed to Lua that behaves like a table (port of the SDK's C example)
+bundleID=dev.sharpdate.array

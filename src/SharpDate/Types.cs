@@ -260,6 +260,12 @@ namespace Playdate
         public CollisionPoint Touch;    // Coordinates where the sprite started touching other
         public PDRect SpriteRect;       // Rectangle the sprite occupied when the touch happened
         public PDRect OtherRect;        // Rectangle the other sprite occupied when the touch happened
+
+        /// <summary>The managed sprite being moved.</summary>
+        public Playdate.Sprite SpriteObject => Playdate.Sprite.FromHandle(Sprite);
+
+        /// <summary>The managed sprite that was hit (null if it wasn't created through SharpDate).</summary>
+        public Playdate.Sprite OtherSprite => Playdate.Sprite.FromHandle(Other);
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -270,6 +276,9 @@ namespace Playdate
         public float Ti2;               // exit point
         public CollisionPoint EntryPoint;
         public CollisionPoint ExitPoint;
+
+        /// <summary>The managed sprite intersected by the segment.</summary>
+        public Playdate.Sprite SpriteObject => Playdate.Sprite.FromHandle(Sprite);
     }
 
     // ---- Sound ----

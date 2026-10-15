@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PlaydateGameName>Json</PlaydateGameName>
+    <!-- test.json comes from the SDK's C example -->
+    <PlaydateSdkExampleAssets>JSON/Source</PlaydateSdkExampleAssets>
+  </PropertyGroup>
+</Project>

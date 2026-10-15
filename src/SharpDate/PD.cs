@@ -85,7 +85,11 @@ namespace Playdate
                 return 0;
 
             if (ev == SystemEvent.InitLua)
+            {
                 s_game.InitializeLuaInternal();
+                if (DevCapture.Enabled && !s_game.UsesUpdateCallbackInternal)
+                    PD.System->setUpdateCallback(&DevCapture.LuaUpdate, null);
+            }
             else
                 s_game.OnEvent(ev, arg);
             return 0;
@@ -132,6 +136,16 @@ namespace Playdate
             file.Write(message);
             file.Write("\n");
             file.Dispose();
+        }
+
+        // Capture mode for Lua-driven games: run the Lua update ourselves so frames can be counted.
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static int LuaUpdate(void* userdata)
+        {
+            if (!Lua.CallFunction("playdate.update", 0, out string error))
+                Log("[sharpdate] playdate.update failed: " + error);
+            AfterFrame();
+            return 1;
         }
 
         internal static void AfterFrame()
@@ -190,5 +204,7 @@ namespace Playdate
         }
 
         internal void InitializeLuaInternal() => InitializeLua();
+
+        internal bool UsesUpdateCallbackInternal => UsesUpdateCallback;
     }
 }
