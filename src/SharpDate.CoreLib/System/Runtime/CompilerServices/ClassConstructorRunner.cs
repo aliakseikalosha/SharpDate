@@ -52,6 +52,48 @@ namespace Internal.Runtime.CompilerHelpers
         private static RuntimeFieldHandle GetRuntimeFieldHandle(IntPtr pHandleSignature) => default;
     }
 
+    // Array allocations via `newobj` (multidimensional and jagged arrays); names are a contract with ILC.
+    internal static unsafe class ArrayHelpers
+    {
+        public static Array NewObjArray(Internal.Runtime.MethodTable* pEEType, int nDimensions, int* pDimensions)
+        {
+            int rank = pEEType->ArrayRank;
+            if (rank < nDimensions)
+            {
+                // The (lowerBound, length) constructor: only zero lower bounds are supported.
+                for (int i = 0; i < rank; i++)
+                {
+                    if (pDimensions[2 * i] != 0)
+                        throw new PlatformNotSupportedException("Arrays with non-zero lower bounds are not supported.");
+                    pDimensions[i] = pDimensions[2 * i + 1];
+                }
+            }
+            return Array.NewMultiDimArray(pEEType, pDimensions, rank);
+        }
+
+        public static Array NewObjArrayRare(Internal.Runtime.MethodTable* pEEType, int nDimensions, int* pDimensions)
+        {
+            if (pEEType->IsSzArray)
+            {
+                Array ret = System.Runtime.CompilerServices.Unsafe.As<Array>(System.Runtime.RuntimeImports.RhNewArray(pEEType, pDimensions[0]));
+                if (nDimensions > 1)
+                {
+                    // Jagged arrays have constructors for each possible depth.
+                    Internal.Runtime.MethodTable* elementType = pEEType->RelatedParameterType;
+                    Array[] arrayOfArrays = (Array[])ret;
+                    for (int i = 0; i < arrayOfArrays.Length; i++)
+                        arrayOfArrays[i] = NewObjArrayRare(elementType, nDimensions - 1, pDimensions + 1);
+                }
+                return ret;
+            }
+
+            if (nDimensions == 2 && pDimensions[0] != 0)
+                throw new PlatformNotSupportedException("Arrays with non-zero lower bounds are not supported.");
+            int length = pDimensions[nDimensions - 1];
+            return Array.NewMultiDimArray(pEEType, &length, 1);
+        }
+    }
+
     internal static class DelegateHelpers
     {
         private static object[] GetEmptyObjectArray() => Array.Empty<object>();

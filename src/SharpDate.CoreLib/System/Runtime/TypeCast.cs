@@ -358,3 +358,17 @@ namespace System.Runtime
         }
     }
 }
+
+namespace System.Runtime
+{
+    // Generic virtual methods (virtual or interface methods with their own type parameters) need the
+    // NativeAOT type loader's dispatch tables, which SharpDate's minimal runtime does not include.
+    internal static class TypeLoaderExports
+    {
+        public static IntPtr GVMLookupForSlot(object obj, RuntimeMethodHandle slot)
+        {
+            Environment.FailFast("SharpDate does not support generic virtual methods (virtual/abstract/interface methods with their own type parameters).");
+            return IntPtr.Zero;
+        }
+    }
+}

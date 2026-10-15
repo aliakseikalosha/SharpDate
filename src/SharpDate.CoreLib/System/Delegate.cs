@@ -240,14 +240,14 @@ namespace System
 
         public override int GetHashCode() => (int)(ReferenceEquals(_firstParameter, this) ? _extraFunctionPointerOrData : (nint)_functionPointer);
 
-        public static bool operator ==(Delegate d1, Delegate d2) => d1 is null ? d2 is null : d1.Equals(d2);
+        public static bool operator ==(Delegate d1, Delegate d2) => ReferenceEquals(d1, null) ? ReferenceEquals(d2, null) : d1.Equals((object)d2);
         public static bool operator !=(Delegate d1, Delegate d2) => !(d1 == d2);
     }
 
     public abstract class MulticastDelegate : Delegate
     {
-        public static bool operator ==(MulticastDelegate d1, MulticastDelegate d2) => d1 is null ? d2 is null : d1.Equals((object)d2);
-        public static bool operator !=(MulticastDelegate d1, MulticastDelegate d2) => !(d1 == d2);
+        public static bool operator ==(MulticastDelegate d1, MulticastDelegate d2) => (Delegate)d1 == (Delegate)d2;
+        public static bool operator !=(MulticastDelegate d1, MulticastDelegate d2) => (Delegate)d1 != (Delegate)d2;
         public override bool Equals(object obj) => base.Equals(obj);
         public override int GetHashCode() => base.GetHashCode();
     }

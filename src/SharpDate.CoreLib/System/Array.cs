@@ -12,7 +12,43 @@ namespace System
 
         public int Length => _numComponents;
 
-        public int Rank => 1;
+        public int Rank => GetMethodTable()->IsSzArray ? 1 : GetMethodTable()->ArrayRank;
+
+        public int GetLength(int dimension)
+        {
+            if (GetMethodTable()->IsSzArray)
+            {
+                if (dimension != 0)
+                    ThrowHelpers.ThrowIndexOutOfRangeException();
+                return Length;
+            }
+            if ((uint)dimension >= (uint)Rank)
+                ThrowHelpers.ThrowIndexOutOfRangeException();
+            return Unsafe.Add(ref Unsafe.As<byte, int>(ref GetRawArrayData()), dimension);
+        }
+
+        public int GetLowerBound(int dimension) => 0;
+        public int GetUpperBound(int dimension) => GetLength(dimension) - 1;
+
+        // Allocates a multidimensional array; lengths are written into the bounds area after the length field.
+        internal static Array NewMultiDimArray(MethodTable* eeType, int* pLengths, int rank)
+        {
+            ulong totalLength = 1;
+            for (int i = 0; i < rank; i++)
+            {
+                if (pLengths[i] < 0)
+                    ThrowHelpers.ThrowOverflowException();
+                totalLength *= (ulong)pLengths[i];
+                if (totalLength > int.MaxValue)
+                    ThrowHelpers.ThrowOverflowException();
+            }
+
+            Array ret = Unsafe.As<Array>(RuntimeImports.RhNewArray(eeType, (int)totalLength));
+            ref int bounds = ref Unsafe.As<byte, int>(ref ret.GetRawArrayData());
+            for (int i = 0; i < rank; i++)
+                Unsafe.Add(ref bounds, i) = pLengths[i];
+            return ret;
+        }
 
         internal nuint ElementSize => GetMethodTable()->ComponentSize;
 

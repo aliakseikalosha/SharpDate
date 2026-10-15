@@ -186,6 +186,19 @@ namespace Internal.Runtime
             }
         }
 
+        // Base size of a single-dimensional array: MethodTable*, length (padded to pointer size), one pointer of payload alignment.
+        internal static int SzArrayBaseSize => 2 * sizeof(IntPtr) + (sizeof(IntPtr) == 8 ? 8 : 4);
+
+        /// <summary>Array rank; multidimensional arrays store two ints (length, lower bound) per dimension.</summary>
+        internal int ArrayRank
+        {
+            get
+            {
+                int boundsSize = (int)_uBaseSize - SzArrayBaseSize;
+                return boundsSize > 0 ? boundsSize / (2 * sizeof(int)) : 1;
+            }
+        }
+
         internal IntPtr* VTable => (IntPtr*)((byte*)Unsafe.AsPointer(ref this) + sizeof(MethodTable));
 
         internal MethodTable** InterfaceMap => (MethodTable**)((byte*)VTable + sizeof(IntPtr) * _usNumVtableSlots);
