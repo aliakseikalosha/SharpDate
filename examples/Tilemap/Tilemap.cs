@@ -9,8 +9,10 @@ public sealed class TilemapGame : Game
     private readonly Random _random = new Random();
     private TileMap _tilemap;
 
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new TilemapGame());
+#endif
 
     protected override void Initialize()
     {

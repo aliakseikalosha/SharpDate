@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "SharpDate",
+  "classifications": ["Playdate", "Game"],
+  "identity": "SharpDate.Game",
+  "name": "SharpDate Playdate game",
+  "description": "A Playdate game written in C#, built with SharpDate for the Simulator and the device.",
+  "shortName": "sharpdate",
+  "sourceName": "MyGame",
+  "preferNameDirectory": true,
+  "tags": { "language": "C#", "type": "project" },
+  "symbols": {
+    "sharpdate": {
+      "type": "parameter",
+      "datatype": "string",
+      "description": "Path to the SharpDate repository (absolute, or relative to the new project). Can also be set later with the SHARPDATE_ROOT environment variable.",
+      "defaultValue": "../SharpDate",
+      "replaces": "__SHARPDATE_ROOT__"
+    },
+    "bundleId": {
+      "type": "parameter",
+      "datatype": "string",
+      "description": "pdxinfo bundle ID (reverse-DNS, unique per game)",
+      "defaultValue": "com.example.mygame",
+      "replaces": "com.example.mygame"
+    },
+    "creator": {
+      "type": "parameter",
+      "datatype": "string",
+      "description": "pdxinfo author",
+      "defaultValue": "Me",
+      "replaces": "__AUTHOR__"
+    }
+  },
+  "sources": [
+    { "modifiers": [ { "rename": { "gitignore": ".gitignore" } } ] }
+  ]
+}

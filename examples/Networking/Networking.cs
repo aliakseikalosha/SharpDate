@@ -30,8 +30,10 @@ public sealed class NetworkingGame : Game
     private HttpConnection _http;
     private TcpConnection _tcp;
 
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new NetworkingGame());
+#endif
 
     // --- HTTP ---
 

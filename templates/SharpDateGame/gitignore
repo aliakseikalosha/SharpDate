@@ -1,0 +1,4 @@
+bin/
+obj/
+*.pdx/
+.DS_Store

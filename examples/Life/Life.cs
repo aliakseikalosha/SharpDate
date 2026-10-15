@@ -20,8 +20,10 @@ public sealed unsafe class LifeGame : Game
 
     private readonly Random _random = new Random();
 
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new LifeGame());
+#endif
 
     protected override void Initialize()
     {

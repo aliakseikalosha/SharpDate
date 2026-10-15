@@ -25,8 +25,10 @@ public sealed class Lib3DCSharpGame : Game
     private int _index;
     private MenuItem _menu;
 
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new Lib3DCSharpGame());
+#endif
 
     protected override void Initialize()
     {

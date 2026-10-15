@@ -1,0 +1,9 @@
+<Project>
+  <!-- Where SharpDate lives: SHARPDATE_ROOT environment variable, or the path given to `dotnet new`. -->
+  <PropertyGroup>
+    <SharpDateRoot Condition="'$(SharpDateRoot)' == ''">$(SHARPDATE_ROOT)</SharpDateRoot>
+    <SharpDateRoot Condition="'$(SharpDateRoot)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '__SHARPDATE_ROOT__'))</SharpDateRoot>
+    <SharpDateRoot>$([MSBuild]::EnsureTrailingSlash('$(SharpDateRoot)'))</SharpDateRoot>
+  </PropertyGroup>
+  <Import Project="$(SharpDateRoot)build/SharpDate.Game.props" />
+</Project>

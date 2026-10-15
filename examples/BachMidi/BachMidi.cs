@@ -9,8 +9,10 @@ public sealed class BachMidiGame : Game
     private SoundSequence _sequence;
     private int _lastStep = -1;
 
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new BachMidiGame());
+#endif
 
     protected override void Initialize()
     {

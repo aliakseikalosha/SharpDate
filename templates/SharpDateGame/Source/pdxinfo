@@ -1,0 +1,7 @@
+name=MyGame
+author=__AUTHOR__
+description=A Playdate game written in C#
+bundleID=com.example.mygame
+version=1.0
+buildNumber=1
+imagePath=

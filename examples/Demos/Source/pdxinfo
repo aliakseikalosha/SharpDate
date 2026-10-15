@@ -1,0 +1,4 @@
+name=SharpDate Demos
+author=SharpDate
+description=The Playdate SDK's C examples, ported to C#. Pick one from the menu.
+bundleID=dev.sharpdate.demos

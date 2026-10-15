@@ -16,8 +16,10 @@ public sealed class HelloWorldGame : Game
     private int _dx = 1;
     private int _dy = 2;
 
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new HelloWorldGame());
+#endif
 
     protected override void Initialize()
     {

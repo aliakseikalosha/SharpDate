@@ -29,8 +29,10 @@ public sealed class SpriteGameMain : Game
 
     private Player _player;
 
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new SpriteGameMain());
+#endif
 
     protected override void Initialize()
     {

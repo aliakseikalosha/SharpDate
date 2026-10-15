@@ -6,8 +6,10 @@ namespace JsonExample;
 
 public sealed class JsonGame : Game
 {
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new JsonGame());
+#endif
 
     private static string TypeToName(JsonValueType type) => type switch
     {

@@ -18,8 +18,10 @@ public sealed class SpriteCollisionsGame : Game
     private readonly int[] _tickList = new int[MaxSamples];
     private readonly char[] _fpsText = new char[2];
 
+#if !SHARPDATE_DEMOS // the Demos launcher starts this game itself
     [ModuleInitializer]
     internal static void Register() => PD.Run(() => new SpriteCollisionsGame());
+#endif
 
     protected override void Initialize()
     {

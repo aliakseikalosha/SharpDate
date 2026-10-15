@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    One pdx containing all the pure C# examples, picked from a menu.
+    The examples' sources are compiled in directly; SHARPDATE_DEMOS turns off their own
+    [ModuleInitializer] registration so the launcher decides which game runs.
+  -->
+  <PropertyGroup>
+    <PlaydateGameName>SharpDateDemos</PlaydateGameName>
+    <DefineConstants>$(DefineConstants);SHARPDATE_DEMOS</DefineConstants>
+    <PlaydateSdkExampleAssets>Tilemap/Source;bach.mid/Source;JSON/Source;Sprite Game/Source</PlaydateSdkExampleAssets>
+    <PlaydateExtraSourceExclude>**/*.lua</PlaydateExtraSourceExclude>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../HelloWorld/*.cs;../Life/*.cs;../Tilemap/*.cs;../BachMidi/*.cs;../Json/*.cs;../SpriteGame/*.cs;../SpriteCollisions/*.cs;../Networking/*.cs;../Lib3DCSharp/*.cs" LinkBase="Examples" />
+    <ProjectReference Include="../Mini3D/Mini3D.csproj" />
+  </ItemGroup>
+</Project>

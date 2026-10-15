@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- SharpDate is imported by Directory.Build.props/.targets (see SharpDateRoot there). -->
+  <PropertyGroup>
+    <PlaydateGameName>MyGame</PlaydateGameName>
+    <PlaydateBundleId>com.example.mygame</PlaydateBundleId>
+  </PropertyGroup>
+</Project>
