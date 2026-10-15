@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: 0BSD
+// This file restates interface facts from the Playdate SDK headers (names, values, layouts);
+// those remain Panic's. SharpDate's own contributions to it are 0BSD. See LICENSING.md.
+
 // The few parts of the Playdate C API that the SharpDate runtime uses, declared here so the runtime
 // compiles without the SDK headers (which need a C library: stdlib.h, stdio.h, math.h...). That
 // lets the Windows Simulator build use a bare LLVM install. Managed code uses the full generated

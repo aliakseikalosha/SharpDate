@@ -1,0 +1,165 @@
+# Source tree
+
+Every file and class in the repository, and what it does. The [API listing](api/README.md) has every
+public member of `src/SharpDate`; [How it works](how-it-works.md) explains how the pieces fit
+together.
+
+```
+SharpDate/
+├── README.md, LICENSE (MPL-2.0), LICENSING.md, THIRD-PARTY-NOTICES.md, SharpDate.sln, .gitignore
+├── .vscode/                     tasks.json (build/run/deploy/test tasks), extensions.json
+├── build/                       MSBuild glue imported by every game
+├── src/
+│   ├── SharpDate/               the Playdate API for C# (namespace Playdate)
+│   │   └── Native/              generated raw C bindings (namespace Playdate.Native)
+│   ├── SharpDate.CoreLib/       System.Private.CoreLib: the C# base library games compile against
+│   └── SharpDate.Runtime/       native runtime: allocator, GC, stubs, entry point (C + assembly)
+├── tools/                       Python tools: bindings, deploy, Simulator capture, docs
+├── tests/                       runtime test suite and the mock Playdate host
+├── templates/SharpDateGame/     `dotnet new sharpdate` project template
+├── examples/                    ports of the SDK's C examples, the Demos launcher, Mini3D
+└── docs/                        documentation (reference/, api/ is generated)
+```
+
+## build/
+
+| File | Purpose |
+|---|---|
+| `SharpDate.CoreLib.props` | Makes a project compile against `SharpDate.CoreLib` instead of the .NET libraries (`NoStdLib`, no implicit framework references) and defines `SharpDateRoot`. |
+| `SharpDate.Game.props` | Defaults for a game project: net10.0 class library, unsafe code, implicit `using System; using System.Collections.Generic; using Playdate;`, a reference to `src/SharpDate`, `PlaydateSourceDir = Source`, and the hook that imports `SharpDate.Run.targets`. |
+| `SharpDate.Game.targets` | The build pipeline after `Build`: finds the SDK and toolchains, runs ILC for each Simulator target and the device, links `pdex.dylib`/`.so`/`.dll` and `pdex.elf`, fixes up VFP instructions, warns about double-precision code, stages assets and runs `pdc`; also the `Deploy` and clean targets. All properties are documented at the top of the file. |
+| `SharpDate.Run.targets` | The `Run` target and `RunCommand` for `dotnet run`, imported after the .NET SDK's own `Run` target so it replaces it. |
+
+## src/SharpDate/ — the Playdate API
+
+Namespace `Playdate`. Each file wraps one part of the C API; see the [reference](reference/README.md).
+
+| File | Types | Purpose |
+|---|---|---|
+| `PD.cs` | `PD`, `Game`, `DevCapture` (internal) | Entry point (`PD.Run`), the raw `PlaydateAPI*`, the managed event handler called by the native runtime, the `Game` base class, and the test capture hook used by `tools/simtest.py`. |
+| `Sys.cs` | `Sys`, `MenuItem` | `pd->system`: logging, buttons, crank, accelerometer, time, menu items, battery, device settings, launch arguments, server time, serial messages. |
+| `Display.cs` | `Display`, `TileMap`, `VideoPlayer` | `pd->display`, `pd->graphics->tilemap`, `pd->graphics->video`. |
+| `Graphics.cs` | `LCDColor`, `Pattern`, `Graphics`, `Bitmap`, `BitmapTable`, `Font` | `pd->graphics`: drawing, text, bitmaps, image tables, fonts, the frame buffer. |
+| `Sprite.cs` | `Sprite`, `Sprites`, `CollisionList`, `SpriteList`, `SpriteQueryList` | `pd->sprite`: sprite objects with overridable update/draw/collision callbacks (routed through GC handles in the sprite userdata), queries, collision results. |
+| `Sound.cs` | `Sound`, `SoundSource`, `FilePlayer`, `AudioSample`, `SamplePlayer`, `SynthSignalValue`, `SynthSignal`, `LFO`, `Envelope`, `Synth`, `Instrument`, `ControlSignal`, `SequenceTrack`, `SoundSequence`, `SoundChannel`, `SoundEffect` | `pd->sound`: players, synthesis, sequencing, mixing, effects; finish/loop callbacks delivered as C# delegates. |
+| `File.cs` | `FileSystem`, `PDFile` | `pd->file`, plus whole-file helpers (`ReadAllText`, `WriteAllBytes`, ...). |
+| `Json.cs` | `JsonHandler`, `JsonNode`, `Json`, `JsonWriter` | `pd->json`: streaming decoder callbacks, a tree parser built on them, and the encoder. |
+| `Lua.cs` | `LuaFunction`, `Lua` | `pd->lua`: registering C# functions and classes, arguments and return values, managed objects in Lua. |
+| `Network.cs` | `Scoreboards`, `Network`, `HttpConnection`, `TcpConnection` | `pd->scoreboards`, `pd->network` with events as C# delegates. |
+| `Types.cs` | enums (`Buttons`, `SystemEvent`, `DrawMode`, `SoundWaveform`, `NetErr`, ...) and data structs (`PDRect`, `LCDRect`, `SpriteCollisionInfo`, `JsonValue`, `PDDateTime`, ...) | The C API's enums and plain structs, laid out like the C headers on both the 64-bit Simulator and the 32-bit device (C enums are 1 byte on the device). |
+| `Utf8.cs` | `Utf8` | String conversion for native calls: reusable scratch buffers, owned copies, code-point counts. |
+| `Native/PlaydateApi.g.cs` | `PlaydateAPI`, `playdate_sys`, `playdate_graphics`, ... (all C API structs), opaque handle types | Generated by `tools/generate_bindings.py`: one `delegate* unmanaged[Cdecl]` field per C function, documented with its C declaration. |
+| `Native/NativeRuntime.cs` | `Variadic` (internal) | Calls the variadic `logToConsole` and `error` through C helpers in the runtime. |
+| `SharpDate.csproj` | | Builds `SharpDate.dll` against SharpDate.CoreLib; XML documentation is required for every public member. |
+
+## src/SharpDate.CoreLib/ — the base library
+
+SharpDate's `System.Private.CoreLib`: the types C# needs, a practical subset of .NET, and the contracts
+the NativeAOT compiler (ILC) expects from a core library. Files named after .NET concepts follow the
+data layouts in dotnet/runtime (MIT); see THIRD-PARTY-NOTICES.md.
+
+| File | Types | Purpose |
+|---|---|---|
+| `Internal/Runtime/MethodTable.cs` | `MethodTable`, `ObjHeader`, `EETypeFlags`, `EETypeKind`, `EETypeElementType`, `DispatchMap` | Layout of the type descriptors ILC emits (base type, interfaces, flags, sizes, GC info), read by casting, dispatch and the GC. |
+| `Internal/Runtime/InterfaceDispatch.cs` | `InterfaceDispatch`, `ExceptionReporting` | Resolves interface method calls (called from the assembly dispatch stub, with a 256-entry cache), and reports unhandled exceptions through `pd->system->error`. |
+| `Internal/Runtime/CompilerHelpers/StartupCodeHelpers.cs` | `StartupCodeHelpers` | Module start-up: registers GC static regions as roots, runs eager static constructors and module initializers (where `PD.Run` is called). |
+| `System/Object.cs` | `Object`, `RawData` | The root type: `GetType`, `Equals`, `GetHashCode` (address-based, objects never move), `MemberwiseClone`. |
+| `System/Primitives.cs` | `Void`, `Boolean`, `Char`, `SByte`, `Byte`, `Int16`, `UInt16`, `Int32`, `UInt32`, `Int64`, `UInt64`, `IntPtr`, `UIntPtr`, `Single`, `Double` | Primitive types with `ToString`, formatting and parsing, constants. |
+| `System/ValueTypes.cs` | `ValueType`, `Enum`, `Nullable<T>`, `IDisposable`, `IEquatable<T>`, `IComparable`, `Index`, `Range`, `ValueTuple<...>`, ... | Value-type base classes, core interfaces, tuples. |
+| `System/String.cs` | `String` | Immutable UTF-16 strings: construction, search, comparison, splitting, joining, trimming, case. |
+| `System/Text.cs` | `StringBuilder`, `Encoding`, `UTF8Encoding`, `DefaultInterpolatedStringHandler` | Building strings, UTF-8 conversion, `$"..."` interpolation without boxing. |
+| `System/Number.cs` | `Number` (internal) | Number formatting (`D`, `X`, `N`, `F`, `G`) and parsing, using only single-precision math. |
+| `System/Array.cs` | `Array`, `Array<T>`, `EmptyArray<T>`, `RawArrayData` | Array layout, `Copy`, `Resize`, `Sort`, `IndexOf`, multidimensional arrays. |
+| `System/Span.cs` | `Span<T>`, `ReadOnlySpan<T>`, `MemoryExtensions` | Spans and their helpers. |
+| `System/Buffer.cs` | `Buffer`, `SpanHelpers` | Memory copy/fill helpers the compiler calls. |
+| `System/Collections/Generic.cs` | `List<T>`, `Dictionary<TKey, TValue>`, `HashSet<T>`, `Queue<T>`, `Stack<T>`, `KeyValuePair`, `EqualityComparer<T>`, `Comparer<T>`, the collection interfaces | Generic collections. |
+| `System/Delegate.cs` | `Delegate`, `MulticastDelegate`, `Action<...>`, `Func<...>`, `Predicate<T>`, `Comparison<T>`, `EventHandler`, ... | Delegate layout and invocation lists (events). |
+| `System/Exception.cs` | `Exception` and the standard exception types, `ThrowHelpers` | Exceptions (fatal: no unwinding) and the throw helpers compiled code calls for range/null/cast checks. |
+| `System/Math.cs` | `Math`, `MathF`, `CLib` | Math functions (MathF for games) and the arithmetic helpers the ARM32 compiler calls (division, 64-bit operations). |
+| `System/Environment.cs` | `Environment`, `GC`, `Console`, `Random`, `Debug`, `Stopwatch`, `Interlocked`, `Volatile`, `Monitor`, `Lock` | Runtime services: GC control, console output (→ the Playdate console), random numbers, timing, single-threaded synchronization primitives. |
+| `System/Type.cs` | `Type`, `RuntimeType`, `RuntimeTypeHandle`, ... | Type identity without reflection metadata (`typeof(A) == b.GetType()` works). |
+| `System/Attributes.cs` | `Attribute`, `FlagsAttribute`, `ModuleInitializerAttribute`, nullability and compiler attributes, ... | Attributes the C# compiler and ILC need. |
+| `System/Numerics/BitOperations.cs` | `BitOperations` | `PopCount`, `LeadingZeroCount`, `TrailingZeroCount`, `Log2`, rotations. |
+| `System/Runtime/TypeCast.cs` | `TypeCast`, `RuntimeExports`, `TypeLoaderExports` | `is`/`as`/casts, array covariance checks, boxing and unboxing helpers called by compiled code. |
+| `System/Runtime/RuntimeImports.cs` | `RuntimeImports`, `RuntimeImportAttribute`, `RuntimeExportAttribute` | Declarations of the native runtime functions (`sd_alloc`, `sd_gc_collect`, `sd_handle_*`, ...) and the attribute that exports managed helpers under fixed names. |
+| `System/Runtime/CompilerServices/ClassConstructorRunner.cs` | `ClassConstructorRunner`, `ArrayHelpers`, `LdTokenHelpers`, `DelegateHelpers`, ... | Lazy static constructors and other compiler helpers. |
+| `System/Runtime/CompilerServices/RuntimeHelpers.cs` | `RuntimeHelpers` | `InitializeArray`, `CreateSpan`, `IsReferenceOrContainsReferences`, `RunClassConstructor`. |
+| `System/Runtime/CompilerServices/Unsafe.cs` | `Unsafe` | Pointer and reference reinterpretation (bodies supplied by the compiler). |
+| `System/Runtime/InteropServices/Interop.cs` | `GCHandle`, `NativeMemory`, `Marshal`, `MemoryMarshal`, `StructLayoutAttribute`, `UnmanagedCallersOnlyAttribute`, ... | Native interop: handles that keep objects alive, the native heap, layout attributes. |
+| `Properties.cs` | | Lets `SharpDate.dll` bind directly to native runtime symbols. |
+
+## src/SharpDate.Runtime/ — the native runtime
+
+Compiled into every game: with clang/gcc for the Simulator, with arm-none-eabi-gcc for the device.
+
+| File | Purpose |
+|---|---|
+| `sdrt.c` | Allocation (`RhpNewFast`, arrays, strings) through `pd->system->realloc`; the garbage collector (non-moving mark-and-sweep: precise for objects using the compiler's GC descriptors, conservative over the native stack; roots are static fields and GC handles); GC handles; exception reporting (`RhpThrowEx`); arithmetic helpers for 32-bit ARM; double formatting/parsing in C; the variadic logging shims; and `eventHandler`, the function the Playdate calls, which starts the managed runtime and forwards events to `PD`. |
+| `sdrt_pd.h` | The few Playdate API declarations the runtime uses, so it builds without the SDK's C library headers (needed for an LLVM-only Windows build). |
+| `sdrt_x64.S` | x86-64 stubs with register contracts the compiler relies on: write barriers (plain stores — the GC isn't generational) and the interface dispatch stub; System V (macOS, Linux) and Windows variants. |
+| `sdrt_arm64.S` | The same for arm64 (Apple Silicon and arm64 Linux Simulators). |
+| `sdrt_thumb2.S` | The same for the Playdate's Cortex-M7 (Thumb-2). |
+| `link_map.ld` | Device linker script: the SDK's layout plus sections for compiled managed code, the module list, and space for the VFP fix-up veneers. |
+| `ucrtbase.def` | C library functions imported from `ucrtbase.dll` by the Windows Simulator library (turned into an import library at build time). |
+
+## tools/
+
+| File | Purpose |
+|---|---|
+| `generate_bindings.py` | Parses the SDK headers and writes `src/SharpDate/Native/PlaydateApi.g.cs`. |
+| `fixup_vfp.py` | Rewrites `vmov.f64` instructions (undefined on the device's single-precision FPU) in `pdex.elf` into branches to veneers. |
+| `check_doubles.py` | Lists device functions that still contain double-precision instructions (the build's warning). |
+| `deploy.py` | Installs a pdx on a USB-connected Playdate and runs it (macOS, Linux, Windows); can leave and fetch files for hardware tests. |
+| `simtest.py` | Runs a pdx in the Simulator headlessly and captures frame N as a PNG with the game's log. |
+| `playdate_sdk.py` | Finds the SDK, `pdc`, `pdutil` and the Simulator on each OS (shared by the tools). |
+| `generate_api_docs.py` | Writes `docs/api/` from the XML doc comments. |
+| `check_doc_snippets.py` | Compiles every C# example in the documentation. |
+
+## tests/
+
+| File | Purpose |
+|---|---|
+| `RuntimeTests/RuntimeTests.cs` | 126 checks of the compiler/runtime contract: arithmetic, strings, collections, type system (interfaces, variance, casting, boxing), delegates, static constructors, spans, GC under load, native struct layouts. Classes: `TestGame` and one static class per area (`ArithmeticTests`, `StringTests`, `CollectionTests`, `TypeSystemTests`, `DelegateTests`, `StaticTests`, `SpanTests`, `GcTests`, `InteropLayoutTests`) plus helper types. |
+| `MockHost/mockhost.c` | Loads a Simulator library with a fake `PlaydateAPI` and runs it without the Simulator (POSIX and Windows). |
+| `run-tests.py`, `run-tests.sh` | Build the tests and run them in the mock host. |
+| `Directory.Build.props/.targets` | Make the test project a SharpDate game. |
+
+## templates/SharpDateGame/
+
+The `dotnet new sharpdate` template: `MyGame.csproj`, `MyGame.cs` (a starter game with a sprite, a synth,
+the crank and a menu item), `Directory.Build.props/.targets` (point at SharpDate), `Source/pdxinfo`,
+`.vscode/tasks.json`, `README.md`, `gitignore`, and `.template.config/template.json` (parameters
+`--sharpdate`, `--bundleId`, `--creator`).
+
+## examples/
+
+| Folder | Classes | Shows |
+|---|---|---|
+| `Demos` | `Launcher`, `DemoInfo`, `MenuGame` | All examples in one pdx, chosen from a menu (restarts the game with launch arguments). |
+| `HelloWorld` | `HelloWorldGame` | Fonts, text, bouncing. |
+| `Life` | `LifeGame` | Conway's Life on the raw frame buffer. |
+| `Tilemap` | `TilemapGame` | `TileMap` with an image table. |
+| `BachMidi` | `BachMidiGame` | A MIDI file played on a sampled instrument, with a piano roll. |
+| `Json` | `JsonGame` | Streaming JSON callbacks and `Json.Parse`. |
+| `SpriteGame` | `SpriteGameMain`, `Background`, `Player`, `Bullet`, `EnemyPlane`, `BackgroundPlane`, `Explosion` | A shoot-'em-up: sprites, collisions, crank. |
+| `SpriteCollisions` | `SpriteCollisionsGame`, `Player`, `Block` | Collision responses, custom drawing, line queries. |
+| `Networking` | `NetworkingGame` | HTTP and TCP with the SDK's test server. |
+| `Mini3D` | `Scene3D`, `Scene3DNode`, `Shape3D`, `ShapeBuilder`, `Point3D`, `Vector3D`, `Matrix3D`, `Render` | The 3D engine library ([reference](reference/mini3d.md)). |
+| `Lib3DCSharp` | `Lib3DCSharpGame`, `Demo3D`, `IcosahedraDemo`, `KnotDemo`, `OrderedKnotDemo`, `ZTestDemo` | The SDK's 3D scenes in pure C#. |
+| `Lib3D` | `Lib3DGame`, `LuaGlue`, `PointObject`, `MatrixObject` | Mini3D exposed to Lua, running the SDK's Lua scenes. |
+| `Exposure` | `ExposureGame` | One C# function called from Lua. |
+| `Array` | `ArrayGame`, `IntArray` | A C# class that behaves like a Lua table. |
+| `Particles` | `ParticlesGame`, `ParticleSystem`, `Particle` | A C# particle system driven from Lua. |
+| `Directory.Build.props/.targets` | | Make every project under `examples/` a SharpDate game. |
+
+`examples/LICENSE` and `templates/LICENSE` hold the 0BSD text for those two folders; see
+[LICENSING.md](../LICENSING.md).
+
+Example assets (images, sounds, Lua files) come from the SDK's `C_API/Examples` at build time and are
+not in the repository.
+
+## docs/
+
+`getting-started.md`, `api-guide.md` (quick tour), `reference/` (every class with examples),
+`api/` (generated member listing), `porting-from-c.md`, `device.md`, `how-it-works.md`,
+`tools-and-testing.md`, and this page.

@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Loads a SharpDate game's Simulator library (pdex.dylib/.so/.dll) with a minimal fake PlaydateAPI
 // and sends it kEventInit. Used to run tests/RuntimeTests without the Playdate Simulator.
 // Exit code: 0 on success, 2 if the game logged a FAIL, 3 if it called pd->system->error,

@@ -1,3 +1,7 @@
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0. If a copy of the MPL was not distributed with this
+; file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 ; C library functions that compiled game code and the runtime may call on the Windows Simulator.
 ; The build turns this into an import library for ucrtbase.dll (part of Windows 10 and later), so
 ; linking pdex.dll needs only LLVM (clang + lld-link), not the Visual Studio C runtime libraries.

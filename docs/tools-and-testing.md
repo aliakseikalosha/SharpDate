@@ -75,3 +75,9 @@ instructions, which the build reports as a warning.
    with the native code and runs `pdc`.
 
 Intermediate files are in `obj/<Config>/sharpdate/`. Build with `-v:n` to see each command.
+
+## Documentation tools
+
+- `python3 tools/generate_api_docs.py` regenerates `docs/api/` from the XML doc comments in
+  `src/SharpDate` (the build warns about undocumented public members).
+- `python3 tools/check_doc_snippets.py` compiles every C# example in README.md and docs/.

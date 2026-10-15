@@ -1,3 +1,6 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+     License, v. 2.0. If a copy of the MPL was not distributed with this
+     file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
@@ -14,7 +17,8 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591;CS8500</NoWarn>
+    <!-- Every public member is documented (CS1591 stays on); only non-obvious parameters get a <param> tag (CS1573). -->
+    <NoWarn>$(NoWarn);CS1573;CS8500</NoWarn>
   </PropertyGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)../../build/SharpDate.CoreLib.props" />

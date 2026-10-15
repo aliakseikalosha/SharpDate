@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Interface method resolution for the SharpDate runtime. Called from the dispatch stub in
 // sdrt_*.S with the receiver and the dispatch cell emitted by ILC.
 // Algorithm follows dotnet/runtime Runtime.Base DispatchResolve.cs (MIT).

@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Module initialization for the SharpDate runtime: sets up GC static bases and runs eager
 // static constructors, following the ReadyToRun module-header contract emitted by ILC
 // (see dotnet/runtime src/coreclr/nativeaot/Common/src/Internal/Runtime/CompilerHelpers/StartupCodeHelpers.cs, MIT).

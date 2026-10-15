@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Installs a .pdx on a Playdate connected over USB and launches it (macOS, Linux, Windows).
 
 Usage: tools/deploy.py <game.pdx> [--serial PORT] [--no-run]

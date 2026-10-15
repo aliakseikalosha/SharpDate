@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Rewrites double-precision register moves in a linked Playdate pdex.elf.
 
 The .NET ARM32 JIT sometimes copies a pair of single-precision registers with one

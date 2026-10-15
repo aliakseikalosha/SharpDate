@@ -69,7 +69,8 @@ LLVM on Windows), and `arm-none-eabi-gcc` + Python 3 for device builds. Details:
 
 ## Documentation
 
-- [Getting started](docs/getting-started.md) · [API guide](docs/api-guide.md) · [Porting from C](docs/porting-from-c.md)
+- [Getting started](docs/getting-started.md) · [API guide](docs/api-guide.md) · [Reference with examples](docs/reference/README.md) · [API listing](docs/api/README.md)
+- [Coming from Lua](docs/reference/lua-to-csharp.md) · [Porting from C](docs/porting-from-c.md) · [Source tree](docs/source-tree.md)
 - [Running on a Playdate](docs/device.md) · [How it works](docs/how-it-works.md) · [Tools and testing](docs/tools-and-testing.md)
 
 ## Examples
@@ -170,7 +171,11 @@ using SharpDate's capture hook (`DevCapture` in `src/SharpDate/PD.cs`).
 
 ## Licensing
 
-SharpDate's runtime follows data contracts of the .NET runtime (MIT); see
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The examples are ports of Panic's SDK examples and
-use assets from your local SDK; the Playdate SDK is not included. Choose a license for this
-repository before publishing it.
+SharpDate is licensed under the [Mozilla Public License 2.0](LICENSE). The copyleft works per file:
+**your game can use any license you like, including a closed-source one.** If you change SharpDate's
+own files and ship the result, you share those changed files under the MPL, and your game must say
+where SharpDate's source can be found. The examples and the project template are 0BSD, so you can
+copy from them freely. Details and a ready-made credit line: [LICENSING.md](LICENSING.md).
+
+The Playdate SDK is © Panic Inc. under its own license and is not included. See also
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

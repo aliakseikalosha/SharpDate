@@ -24,7 +24,7 @@ public sealed class MyGame : Game
     internal static void Register() => PD.Run(() => new MyGame());
 
     protected override void Initialize() { /* setup */ }      // kEventInit; update callback is installed for you
-    public override bool Update() { ...; return true; }
+    public override bool Update() { /* ... */ return true; }
     protected override void OnEvent(SystemEvent ev, uint arg) { /* kEventPause, ... */ }
 }
 ```

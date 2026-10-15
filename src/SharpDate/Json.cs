@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -7,8 +11,10 @@ using Playdate.Native;
 namespace Playdate
 {
     /// <summary>
-    /// Streaming JSON decoding callbacks, mirroring the C <c>json_decoder</c>. Override the methods you
-    /// need and pass the handler to <see cref="Json.Decode(JsonHandler, string)"/>.
+    /// Receives streaming JSON callbacks while a document is decoded (C: json_decoder), so large files can be
+    /// read without building a tree. Override the methods you need and pass the handler to
+    /// <see cref="Json.Decode(JsonHandler, string)"/> or <see cref="Json.DecodeFile"/>; for small documents
+    /// <see cref="Json.Parse"/> is simpler.
     /// </summary>
     public abstract unsafe class JsonHandler
     {
@@ -17,19 +23,47 @@ namespace Playdate
         /// <summary>Current position in the document, e.g. "web-app.servlet[1].init-param".</summary>
         public string Path => Decoder == null ? null : Utf8.ToString(Decoder->path);
 
+        /// <summary>
+        /// Called when the JSON is invalid, with the message and line number. Decoding stops.
+        /// </summary>
+        /// <param name="error">Description of the problem.</param>
+        /// <param name="lineNumber">1-based line in the document.</param>
         public virtual void DecodeError(string error, int lineNumber) { }
+        /// <summary>
+        /// Called when an object (<see cref="JsonValueType.Table"/>) or array starts. <paramref name="name"/>
+        /// is its key, or "_root" for the document itself. Set <see cref="ReturnString"/> here to get it as
+        /// raw text instead.
+        /// </summary>
+        /// <param name="name">Key of the object or array ("_root" for the document).</param>
+        /// <param name="type"><see cref="JsonValueType.Table"/> or <see cref="JsonValueType.Array"/>.</param>
         public virtual void WillDecodeSublist(string name, JsonValueType type) { }
+        /// <summary>
+        /// Return false to skip the value for <paramref name="key"/> (it is not decoded at all).
+        /// </summary>
+        /// <param name="key">The member name.</param>
         public virtual bool ShouldDecodeTableValueForKey(string key) => true;
+        /// <summary>
+        /// Called for each member of an object, after its value is decoded. For nested objects and arrays the
+        /// value carries what <see cref="DidDecodeSublist"/> returned.
+        /// </summary>
+        /// <param name="key">The member name.</param>
+        /// <param name="value">Its value; valid only during the call.</param>
         public virtual void DidDecodeTableValue(string key, JsonValue value) { }
+        /// <summary>Return false to skip the array element at 1-based <paramref name="position"/>.</summary>
+        /// <param name="position">1-based element position.</param>
         public virtual bool ShouldDecodeArrayValueAtIndex(int position) => true;
 
         /// <summary>Array element (positions start at 1). Position 0 is a bare value at the root of the document.</summary>
+        /// <param name="position">1-based element position; 0 for a bare value at the root.</param>
+        /// <param name="value">Its value; valid only during the call.</param>
         public virtual void DidDecodeArrayValue(int position, JsonValue value) { }
 
         /// <summary>
         /// End of a table or array. The returned pointer is handed to the parent as the sublist's value
         /// (<see cref="JsonValueData.TableValue"/> / <see cref="JsonValueData.ArrayValue"/>).
         /// </summary>
+        /// <param name="name">Key of the finished object or array.</param>
+        /// <param name="type"><see cref="JsonValueType.Table"/> or <see cref="JsonValueType.Array"/>.</param>
         public virtual void* DidDecodeSublist(string name, JsonValueType type) => null;
 
         /// <summary>Set to true to receive the current subtree as a raw string instead of decoding it.</summary>
@@ -44,14 +78,24 @@ namespace Playdate
         }
     }
 
-    /// <summary>A decoded JSON value: null, bool, number, string, array (List) or table (Dictionary).</summary>
+    /// <summary>
+    /// A node of a parsed JSON document, from <see cref="Json.Parse"/> or <see cref="Json.ParseFile"/>.
+    /// Indexers return null for missing keys or indexes, so lookups can be chained:
+    /// <c>doc["player"]["lives"]?.IntValue</c>.
+    /// </summary>
     public sealed class JsonNode
     {
+        /// <summary>The kind of value.</summary>
         public JsonValueType Type { get; }
+        /// <summary>The number as an int (floats truncated; true = 1).</summary>
         public int IntValue { get; }
+        /// <summary>The number as a float.</summary>
         public float FloatValue { get; }
+        /// <summary>The string, or null if this isn't a string.</summary>
         public string StringValue { get; }
+        /// <summary>The elements, or null if this isn't an array.</summary>
         public List<JsonNode> Array { get; }
+        /// <summary>The members, or null if this isn't an object.</summary>
         public Dictionary<string, JsonNode> Table { get; }
 
         /// <summary>Table keys in document order.</summary>
@@ -84,14 +128,20 @@ namespace Playdate
             _ => new JsonNode(JsonValueType.Null),
         };
 
+        /// <summary>True for JSON null.</summary>
         public bool IsNull => Type == JsonValueType.Null;
+        /// <summary>True for JSON true.</summary>
         public bool BoolValue => Type == JsonValueType.True;
+        /// <summary>Number of array elements or object members (0 for other values).</summary>
         public int Count => Array?.Count ?? Table?.Count ?? 0;
 
+        /// <summary>The array element at <paramref name="index"/> (0-based), or null.</summary>
         public JsonNode this[int index] => Array != null && (uint)index < (uint)Array.Count ? Array[index] : null;
 
+        /// <summary>The object member <paramref name="key"/>, or null.</summary>
         public JsonNode this[string key] => Table != null && Table.TryGetValue(key, out JsonNode node) ? node : null;
 
+        /// <summary>The value as text; containers show their size.</summary>
         public override string ToString() => Type switch
         {
             JsonValueType.Null => "null",
@@ -105,10 +155,16 @@ namespace Playdate
         };
     }
 
-    /// <summary>Wraps <c>pd->json</c>.</summary>
+    /// <summary>
+    /// Reading and writing JSON (C: <c>pd->json</c>, Lua: <c>playdate.datastore</c> / <c>json</c>).
+    /// <see cref="Parse"/> builds a <see cref="JsonNode"/> tree; <see cref="Decode(JsonHandler, string)"/>
+    /// streams callbacks to a <see cref="JsonHandler"/>; <see cref="JsonWriter"/> writes JSON.
+    /// </summary>
     public static unsafe class Json
     {
         /// <summary>Decodes a JSON string with streaming callbacks. Returns false on error.</summary>
+        /// <param name="handler">Receives the callbacks.</param>
+        /// <param name="json">The JSON text.</param>
         public static bool Decode(JsonHandler handler, string json)
         {
             JsonDecoder* decoder = CreateDecoder(handler);
@@ -119,6 +175,8 @@ namespace Playdate
         }
 
         /// <summary>Decodes a JSON file (read through <c>pd->file</c>) with streaming callbacks.</summary>
+        /// <param name="handler">Receives the callbacks.</param>
+        /// <param name="path">Relative path (data folder first, then the pdx).</param>
         public static bool DecodeFile(JsonHandler handler, string path)
         {
             PDFile file = FileSystem.Open(path, FileOptions.Read | FileOptions.ReadData);
@@ -130,6 +188,8 @@ namespace Playdate
         }
 
         /// <summary>Decodes from an open file, as the C example does with <c>pd->file->read</c> as the reader.</summary>
+        /// <param name="handler">Receives the callbacks.</param>
+        /// <param name="file">An open file, read from its current position.</param>
         public static bool Decode(JsonHandler handler, PDFile file)
         {
             JsonDecoder* decoder = CreateDecoder(handler);
@@ -143,6 +203,7 @@ namespace Playdate
         }
 
         /// <summary>Parses a JSON string into a <see cref="JsonNode"/> tree (null on error).</summary>
+        /// <param name="json">The JSON text.</param>
         public static JsonNode Parse(string json)
         {
             var builder = new TreeBuilder();
@@ -150,6 +211,7 @@ namespace Playdate
         }
 
         /// <summary>Parses a JSON file into a <see cref="JsonNode"/> tree (null on error).</summary>
+        /// <param name="path">Relative path (data folder first, then the pdx).</param>
         public static JsonNode ParseFile(string path)
         {
             var builder = new TreeBuilder();
@@ -260,13 +322,18 @@ namespace Playdate
         }
     }
 
-    /// <summary>Writes JSON through <c>pd->json->initEncoder</c> into a string.</summary>
+    /// <summary>
+    /// Writes JSON text (C: json_encoder). Call the methods in document order, then <see cref="ToString"/>.
+    /// The writer doesn't validate the structure.
+    /// </summary>
     public sealed unsafe class JsonWriter : IDisposable
     {
         private JsonEncoder* _encoder;
         private GCHandle _self;
         private readonly System.Text.StringBuilder _output = new System.Text.StringBuilder();
 
+        /// <summary>Creates a writer. <paramref name="pretty"/> adds line breaks and indentation.</summary>
+        /// <param name="pretty">Indent and break lines for humans; false for compact output.</param>
         public JsonWriter(bool pretty = false)
         {
             _encoder = (JsonEncoder*)NativeMemory.AllocZeroed((nuint)sizeof(JsonEncoder));
@@ -281,21 +348,32 @@ namespace Playdate
             writer._output.Append(Utf8.ToString(str, len));
         }
 
+        /// <summary>The underlying C encoder.</summary>
         public JsonEncoder* Encoder => _encoder;
 
+        /// <summary>Writes [. Call <see cref="AddArrayMember"/> before each element.</summary>
         public void StartArray() => _encoder->startArray(_encoder);
+        /// <summary>Starts the next array element; then write its value.</summary>
         public void AddArrayMember() => _encoder->addArrayMember(_encoder);
+        /// <summary>Writes ].</summary>
         public void EndArray() => _encoder->endArray(_encoder);
+        /// <summary>Writes {. Call <see cref="AddTableMember"/> before each value.</summary>
         public void StartTable() => _encoder->startTable(_encoder);
 
+        /// <summary>Writes a member name; then write its value.</summary>
+        /// <param name="name">The member name (escaped for you).</param>
         public void AddTableMember(string name)
         {
             byte* p = Utf8.Arg(name);
             _encoder->addTableMember(_encoder, p, System.Text.Encoding.UTF8.GetByteCount(name));
         }
 
+        /// <summary>Writes }.</summary>
         public void EndTable() => _encoder->endTable(_encoder);
+        /// <summary>Writes null.</summary>
         public void WriteNull() => _encoder->writeNull(_encoder);
+        /// <summary>Writes true or false.</summary>
+        /// <param name="value">The boolean.</param>
         public void WriteBool(bool value)
         {
             if (value)
@@ -304,17 +382,32 @@ namespace Playdate
                 _encoder->writeFalse(_encoder);
         }
 
+        /// <summary>Writes an integer.</summary>
+        /// <param name="value">The integer.</param>
         public void WriteInt(int value) => _encoder->writeInt(_encoder, value);
+        /// <summary>
+        /// Writes a number given as a double. Double-precision code crashes on the device (its FPU is single
+        /// precision): use <see cref="WriteFloat"/> or <see cref="WriteInt"/> in games.
+        /// </summary>
+        /// <param name="value">The number.</param>
         public void WriteDouble(double value) => _encoder->writeDouble(_encoder, value);
 
+        /// <summary>Writes a number (formatted like <c>float.ToString()</c>). Safe on the device.</summary>
+        /// <param name="value">The number; NaN and infinities are not valid JSON.</param>
+        public void WriteFloat(float value) => _output.Append(value.ToString());
+
+        /// <summary>Writes a quoted, escaped string.</summary>
+        /// <param name="value">The string (escaped for you).</param>
         public void WriteString(string value)
         {
             byte* p = Utf8.Arg(value);
             _encoder->writeString(_encoder, p, System.Text.Encoding.UTF8.GetByteCount(value));
         }
 
+        /// <summary>The JSON written so far.</summary>
         public override string ToString() => _output.ToString();
 
+        /// <summary>Frees the native encoder.</summary>
         public void Dispose()
         {
             if (_encoder == null)

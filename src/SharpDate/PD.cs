@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -5,34 +9,57 @@ using Playdate.Native;
 
 namespace Playdate
 {
-    /// <summary>
-    /// Access to the raw Playdate C API (<c>PlaydateAPI*</c>) and the game entry point.
-    /// </summary>
+    /// <summary>The game's entry point and the raw Playdate C API (<c>PlaydateAPI*</c>).</summary>
     /// <remarks>
-    /// Everything in the C API is reachable through <see cref="Api"/>, e.g.
-    /// <c>PD.Api->graphics->clear((nuint)SolidColor.White)</c>. The static classes
-    /// <see cref="Graphics"/>, <see cref="Sys"/>, <see cref="Sound"/>, ... wrap it in idiomatic C#.
+    /// Register the game with <see cref="Run"/> from a <c>[ModuleInitializer]</c>. Everything in the C API is
+    /// reachable through <see cref="Api"/> or the shortcuts below, e.g.
+    /// <c>PD.Graphics->clear((nuint)SolidColor.White)</c>; the classes <see cref="Playdate.Graphics"/>,
+    /// <see cref="Sys"/>, <see cref="Playdate.Sound"/> ... wrap it in idiomatic C#. The C structs are in
+    /// <c>Playdate.Native</c>.
     /// </remarks>
     public static unsafe class PD
     {
+        /// <summary>Screen width in pixels (400).</summary>
         public const int LCD_COLUMNS = 400;
+        /// <summary>Screen height in pixels (240).</summary>
         public const int LCD_ROWS = 240;
+        /// <summary>Frame buffer bytes per row (52).</summary>
         public const int LCD_ROWSIZE = 52;
+        /// <summary>Samples per audio render callback (512).</summary>
         public const int AUDIO_FRAMES_PER_CYCLE = 512;
+        /// <summary>MIDI note number of middle C (60).</summary>
         public const float NOTE_C4 = 60;
 
         /// <summary>The PlaydateAPI pointer passed to the game at startup.</summary>
         public static PlaydateAPI* Api { get; private set; }
 
+        /// <summary><c>pd->system</c>: wrapped by <see cref="Sys"/>.</summary>
         public static playdate_sys* System => Api->system;
+        /// <summary><c>pd->file</c>: wrapped by <see cref="FileSystem"/>.</summary>
         public static playdate_file* File => Api->file;
+        /// <summary>
+        /// <c>pd->graphics</c>: wrapped by <see cref="Playdate.Graphics"/>, <see cref="Bitmap"/>,
+        /// <see cref="Font"/> ...
+        /// </summary>
         public static playdate_graphics* Graphics => Api->graphics;
+        /// <summary>
+        /// <c>pd->sprite</c>: wrapped by <see cref="Playdate.Sprite"/> and <see cref="Sprites"/>.
+        /// </summary>
         public static playdate_sprite* Sprite => Api->sprite;
+        /// <summary><c>pd->display</c>: wrapped by <see cref="Playdate.Display"/>.</summary>
         public static playdate_display* Display => Api->display;
+        /// <summary><c>pd->sound</c>: wrapped by <see cref="Playdate.Sound"/> and the sound types.</summary>
         public static playdate_sound* Sound => Api->sound;
+        /// <summary><c>pd->lua</c>: wrapped by <see cref="Playdate.Lua"/>.</summary>
         public static playdate_lua* Lua => Api->lua;
+        /// <summary><c>pd->json</c>: wrapped by <see cref="Playdate.Json"/>.</summary>
         public static playdate_json* Json => Api->json;
+        /// <summary><c>pd->scoreboards</c>: wrapped by <see cref="Playdate.Scoreboards"/>.</summary>
         public static playdate_scoreboards* Scoreboards => Api->scoreboards;
+        /// <summary>
+        /// <c>pd->network</c>: wrapped by <see cref="Playdate.Network"/>, <see cref="HttpConnection"/>,
+        /// <see cref="TcpConnection"/>.
+        /// </summary>
         public static playdate_network* Network => Api->network;
 
         private static Func<Game> s_factory;
@@ -49,12 +76,21 @@ namespace Playdate
         /// </code>
         /// The factory runs when the Playdate sends <see cref="SystemEvent.Init"/>.
         /// </summary>
+        /// <param name="factory">
+        /// Creates the game. Called once, when the system sends <see cref="SystemEvent.Init"/>; must not
+        /// return null.
+        /// </param>
         public static void Run(Func<Game> factory) => s_factory = factory;
 
         /// <summary>
         /// Registers a raw event handler, equivalent to the C <c>eventHandler</c> function,
         /// for games that do not use the <see cref="Playdate.Game"/> class.
         /// </summary>
+        /// <param name="handler">
+        /// Receives every system event and its argument (the key code for
+        /// <see cref="SystemEvent.KeyPressed"/>/<see cref="SystemEvent.KeyReleased"/>, otherwise 0) and
+        /// returns 0.
+        /// </param>
         public static void RunEventHandler(Func<SystemEvent, uint, int> handler) => s_eventHandler = handler;
 
         // Called by the native runtime's eventHandler (sdrt.c).
@@ -168,9 +204,16 @@ namespace Playdate
     }
 
     /// <summary>
-    /// Base class for a Playdate game. Override <see cref="Update"/> (called every frame) and
-    /// optionally <see cref="Initialize"/>, <see cref="InitializeLua"/> and <see cref="OnEvent"/>.
+    /// A Playdate game. Derive from it, register it with <see cref="PD.Run"/> and override
+    /// <see cref="Update"/>.
     /// </summary>
+    /// <remarks>
+    /// The order of calls: the factory passed to <see cref="PD.Run"/> creates the game,
+    /// <see cref="Initialize"/> runs once, then <see cref="Update"/> runs every frame (30 times a second
+    /// by default, see <see cref="Display.RefreshRate"/>). Pause, resume, lock and terminate arrive in
+    /// <see cref="OnEvent"/>. Games with a Lua main loop override <see cref="UsesUpdateCallback"/> and
+    /// <see cref="InitializeLua"/>.
+    /// </remarks>
     public abstract unsafe class Game
     {
         /// <summary>

@@ -11,6 +11,7 @@ until disposed.
 
 ## Graphics
 
+<!-- context: int x = 0, y = 0, w = 10, h = 10, dx = 0, dy = 0; -->
 ```csharp
 Graphics.Clear(SolidColor.White);
 Graphics.FillRect(10, 10, 100, 40, SolidColor.Black);
@@ -28,6 +29,7 @@ Graphics.SetClipRect(x, y, w, h);
 
 Text uses UTF-16 strings directly (no conversion) or UTF-8 literals:
 
+<!-- context: int score = 0; string longText = ""; -->
 ```csharp
 Font font = Font.Load("/System/Fonts/Asheville-Sans-14-Bold.pft");
 Graphics.SetFont(font);
@@ -39,6 +41,7 @@ Graphics.DrawTextInRect(longText, 10, 50, 380, 150, TextWrappingMode.Word, TextA
 
 Bitmaps, image tables and tilemaps:
 
+<!-- context: int x = 0, y = 0, frame = 0; float angle = 0; -->
 ```csharp
 Bitmap player = Bitmap.Load("images/player");          // Source/images/player.png
 Graphics.DrawBitmap(player, x, y, BitmapFlip.FlippedX);
@@ -61,6 +64,7 @@ map.Draw(0, 0);
 
 Direct frame-buffer access (1 bit per pixel, 1 = white, 52 bytes per row):
 
+<!-- context: int x = 0, y = 0; -->
 ```csharp
 Span<byte> frame = Graphics.GetFrame();
 frame[y * Graphics.RowSize + x / 8] &= (byte)~(0x80 >> (x % 8));   // black pixel
@@ -102,9 +106,13 @@ public sealed class Bullet : Sprite
     }
 }
 
-// in Game.Update:
-Sprites.UpdateAndDrawSprites();
+public sealed class Enemy : Sprite
+{
+    public void Explode() => Dispose();
+}
 ```
+
+Then call `Sprites.UpdateAndDrawSprites()` once per frame from `Game.Update`.
 
 Custom drawing: return `true` from `HasDrawFunction` and override `Draw(bounds, drawRect)`.
 Queries: `Sprites.QuerySpritesAtPoint`, `QuerySpritesInRect`, `QuerySpriteInfoAlongLine`,
@@ -113,6 +121,7 @@ them (a `using` does it).
 
 ## Input and system
 
+<!-- context: int x = 0; void Jump() { } -->
 ```csharp
 if (Sys.JustPressed(Buttons.A)) Jump();
 if (Sys.IsPressed(Buttons.Left)) x -= 2;
@@ -132,6 +141,7 @@ uint ms = Sys.CurrentTimeMilliseconds;
 
 System menu items (up to three):
 
+<!-- context: int _level = 0; bool _sound = true; void Restart() { } -->
 ```csharp
 Sys.AddMenuItem("Restart", _ => Restart());
 MenuItem sound = Sys.AddCheckmarkMenuItem("Sound", true, item => _sound = item.Checked);
@@ -172,6 +182,7 @@ and must not allocate.
 
 ## Files
 
+<!-- context: string json = "{}"; -->
 ```csharp
 FileSystem.WriteAllText("save.json", json);       // the game's data folder
 string text = FileSystem.ReadAllText("save.json"); // data folder first, then the pdx
@@ -189,7 +200,9 @@ FileSystem.Mkdir("saves");
 ```csharp
 JsonNode config = Json.ParseFile("config.json");
 int lives = config["player"]["lives"].IntValue;
-foreach (JsonNode enemy in config["enemies"].Array) { ... }
+foreach (JsonNode enemy in config["enemies"].Array)
+    Sys.Log(enemy["name"].StringValue);
+int score = 1200;
 
 using var writer = new JsonWriter(pretty: true);
 writer.StartTable();
@@ -205,6 +218,7 @@ decoder's callbacks (`DidDecodeTableValue`, `DidDecodeArrayValue`, ...) without 
 
 A game can keep its main loop in `Source/main.lua` and implement hot paths in C#:
 
+<!-- context: public sealed class Thing { } -->
 ```csharp
 public sealed unsafe class MyGame : Game
 {

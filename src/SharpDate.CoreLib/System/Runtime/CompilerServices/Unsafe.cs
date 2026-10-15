@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Bodies of [Intrinsic] methods here are replaced by the compiler (ILC provides IL for them);
 // the C# bodies only exist to make the library compile.
 

@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // SharpDate runtime stubs for arm64 hosts (Playdate Simulator on Apple Silicon and arm64 Linux).
 // These helpers have register contracts with JIT-generated code and so cannot be written in C.
 

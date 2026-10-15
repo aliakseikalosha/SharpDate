@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Layout of compiler-generated type descriptors (MethodTable / EEType).
 // This mirrors the data contract emitted by the .NET NativeAOT compiler (ILC); see
 // dotnet/runtime src/coreclr/nativeaot/Common/src/Internal/Runtime/MethodTable.cs (MIT).

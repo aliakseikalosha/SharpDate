@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Runs a .pdx in the Playdate Simulator headlessly and captures a frame.
 
 Usage: tools/simtest.py <game.pdx> [--frame N] [--timeout SECONDS] [--out capture.png]
