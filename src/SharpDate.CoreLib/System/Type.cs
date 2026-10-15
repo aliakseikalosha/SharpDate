@@ -48,9 +48,20 @@ namespace System
         public abstract RuntimeTypeHandle TypeHandle { get; }
 
         [Intrinsic]
-        public static Type GetTypeFromHandle(RuntimeTypeHandle handle) => handle.Value == IntPtr.Zero ? null : new RuntimeType(handle);
+        public static Type GetTypeFromHandle(RuntimeTypeHandle handle) => handle.Value == IntPtr.Zero ? null : GetTypeFromMethodTable(handle.ToMethodTable());
 
-        internal static Type GetTypeFromMethodTable(MethodTable* mt) => new RuntimeType(new RuntimeTypeHandle((IntPtr)mt));
+        // There is exactly one Type object per type (the compiler relies on this for `==`):
+        // it is cached in the type's writable data cell and kept alive as a GC root.
+        internal static Type GetTypeFromMethodTable(MethodTable* mt)
+        {
+            IntPtr* cell = mt->WritableData;
+            if (*cell != IntPtr.Zero)
+                return Unsafe.As<IntPtr, Type>(ref *cell);
+            Type type = new RuntimeType(new RuntimeTypeHandle((IntPtr)mt));
+            System.Runtime.RuntimeImports.sd_gc_add_root(type);
+            *cell = Unsafe.As<Type, IntPtr>(ref type);
+            return type;
+        }
 
         private MethodTable* MT => TypeHandle.ToMethodTable();
 

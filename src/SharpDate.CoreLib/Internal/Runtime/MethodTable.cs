@@ -238,6 +238,9 @@ namespace Internal.Runtime
             return p + *(int*)p;
         }
 
+        /// <summary>Pointer-sized writable cell owned by the runtime (caches the type's RuntimeType object).</summary>
+        internal IntPtr* WritableData => (IntPtr*)ReadRelPtr(GetFieldOffset(FieldWritableData));
+
         internal DispatchMap* DispatchMap => HasDispatchMap ? (DispatchMap*)ReadRelPtr(GetFieldOffset(FieldDispatchMap)) : null;
 
         internal MethodTable* GenericDefinition => (MethodTable*)ReadRelPtr(GetFieldOffset(FieldGenericDefinition));
@@ -276,7 +279,8 @@ namespace Internal.Runtime
             }
         }
 
-        internal MethodTable* NullableType => GetGenericArgument(0);
+        // Nullable<T> has exactly one type argument, stored inline as a relative pointer.
+        internal MethodTable* NullableType => (MethodTable*)ReadRelPtr(GetFieldOffset(FieldGenericComposition));
 
         internal IntPtr GetSealedVirtualSlot(ushort slotNumber)
         {
