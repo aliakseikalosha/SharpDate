@@ -231,7 +231,7 @@ namespace Playdate
         public void GetData(out byte* data, out SoundFormat format, out uint sampleRate, out uint byteLength)
         {
             byte* d;
-            SoundFormat f;
+            SoundFormat f = 0;          // 1-byte enum on the device: only the low byte is written
             uint sr, len;
             Api->getData(Handle, &d, &f, &sr, &len);
             data = d;

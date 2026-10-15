@@ -81,8 +81,10 @@ namespace Playdate
     public struct PDInfo
     {
         public uint OSVersion;
-        public Language Language;
+        private uint _language;         // PDLanguage: 1 byte + padding on the device, 4 bytes in the Simulator
         public uint PdxVersion;
+
+        public Language Language => (Language)(byte)_language;
     }
 
     [Flags]
@@ -252,14 +254,24 @@ namespace Playdate
     {
         public LCDSprite* Sprite;       // The sprite being moved
         public LCDSprite* Other;        // The sprite colliding with the sprite being moved
-        public CollisionResponseType ResponseType;
-        public byte Overlaps;           // True if the sprite was overlapping other when the collision started
+        // C: SpriteCollisionResponseType responseType; uint8_t overlaps;
+        // The device's ARM toolchain uses 1-byte enums (-fshort-enums is the arm-none-eabi default),
+        // the Simulator 4-byte ones, so both fields share one pointer-sized slot: on ARM32 it holds
+        // responseType in byte 0 and overlaps in byte 1; on 64-bit, responseType in bytes 0-3 and
+        // overlaps in byte 4. Either way Ti lands at the C offset (12 or 24).
+        private nuint _responseTypeAndOverlaps;
         public float Ti;                // How far along the movement to the goal the collision occurred (0..1)
         public CollisionPoint Move;     // Difference between the original coordinates and the actual ones
         public CollisionVector Normal;  // Collision normal; usually -1, 0, or 1 in x and y
         public CollisionPoint Touch;    // Coordinates where the sprite started touching other
         public PDRect SpriteRect;       // Rectangle the sprite occupied when the touch happened
         public PDRect OtherRect;        // Rectangle the other sprite occupied when the touch happened
+
+        /// <summary>The collision response that was applied.</summary>
+        public CollisionResponseType ResponseType => (CollisionResponseType)(byte)_responseTypeAndOverlaps;
+
+        /// <summary>True if the sprite was overlapping other when the collision started.</summary>
+        public bool Overlaps => (byte)((ulong)_responseTypeAndOverlaps >> (IntPtr.Size == 4 ? 8 : 32)) != 0;
 
         /// <summary>The managed sprite being moved.</summary>
         public Playdate.Sprite SpriteObject => Playdate.Sprite.FromHandle(Sprite);

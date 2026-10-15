@@ -84,6 +84,12 @@ thread (custom synth generators, effects, sources), pass a function pointer to a
 - Native buffers still work: `NativeMemory.Alloc/Free`, `stackalloc`, pointers and `fixed`.
 - Anything you hand to native code as a pointer to a managed object must stay alive: keep it in a
   field or a `GCHandle` (the wrappers do this for you).
+- **C enums are 1 byte on the device** (arm-none-eabi-gcc defaults to `-fshort-enums`, and the
+  firmware is built that way) but 4 bytes in the Simulator. Passing enums by value is fine; an enum
+  *inside a struct* or behind a pointer is not the same size on both. If you declare your own mirror
+  of a C struct, don't give it a C# enum field for a C enum member — see `SpriteCollisionInfo` in
+  `src/SharpDate/Types.cs` for a layout that works on both, and zero-initialize anything the firmware
+  writes through an enum pointer.
 
 ## Numbers
 

@@ -63,6 +63,8 @@ public sealed class TestGame : Game
         SpanTests.Run();
         Sys.Log("- GcTests");
         GcTests.Run();
+        Sys.Log("- InteropLayoutTests");
+        InteropLayoutTests.Run();
 
         // State checked again after several frames (and collections) in Update.
         for (int i = 0; i < 500; i++)
@@ -563,5 +565,38 @@ internal static class GcTests
         var array = new Pair[9];
         array[4].Name = "interior";
         return ref array[4];
+    }
+}
+
+// Native struct layouts. The device's toolchain uses 1-byte enums and the Simulator 4-byte ones, so the
+// expected sizes come from arm-none-eabi-gcc (32-bit) and clang (64-bit) for the SDK headers.
+public static unsafe class InteropLayoutTests
+{
+    public static void Run()
+    {
+        bool device = IntPtr.Size == 4;
+        TestGame.Equal(sizeof(SpriteCollisionInfo), device ? 72 : 88, "sizeof(SpriteCollisionInfo)");
+        TestGame.Equal(sizeof(SpriteQueryInfo), device ? 28 : 32, "sizeof(SpriteQueryInfo)");
+        TestGame.Equal(sizeof(PDInfo), 12, "sizeof(PDInfo)");
+
+        // A C SpriteCollisionInfo as the platform's compiler lays it out.
+        byte* raw = stackalloc byte[88];
+        for (int i = 0; i < 88; i++)
+            raw[i] = 0xEE;              // garbage in the padding
+        int typeOffset = device ? 8 : 16, overlapsOffset = device ? 9 : 20, tiOffset = device ? 12 : 24;
+        if (device)
+            raw[typeOffset] = (byte)CollisionResponseType.Bounce;
+        else
+            *(int*)(raw + typeOffset) = (int)CollisionResponseType.Bounce;
+        raw[overlapsOffset] = 1;
+        *(float*)(raw + tiOffset) = 0.5f;
+        *(int*)(raw + tiOffset + 12) = -1;    // normal.x after ti and move
+        SpriteCollisionInfo* info = (SpriteCollisionInfo*)raw;
+        TestGame.Equal(info->ResponseType, CollisionResponseType.Bounce, "SpriteCollisionInfo.ResponseType");
+        TestGame.Check(info->Overlaps, "SpriteCollisionInfo.Overlaps");
+        TestGame.Equal(info->Ti, 0.5f, "SpriteCollisionInfo.Ti");
+        TestGame.Equal(info->Normal.X, -1, "SpriteCollisionInfo.Normal.X");
+        raw[overlapsOffset] = 0;
+        TestGame.Check(!info->Overlaps, "SpriteCollisionInfo.Overlaps false");
     }
 }

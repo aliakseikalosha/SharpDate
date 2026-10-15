@@ -39,6 +39,9 @@ Parses the SDK's `pd_api*.h` headers and regenerates `src/SharpDate/Native/Playd
 C# struct of `delegate* unmanaged[Cdecl]` fields per C struct, in the same order. Run it when the
 SDK adds functions, then add wrappers as needed. To check the result against the C compiler, compare
 `sizeof(struct playdate_*) / sizeof(void*)` with the number of fields of each generated struct.
+Check data structs with both compilers: enums are 1 byte with `arm-none-eabi-gcc` and 4 bytes with
+clang, so a layout that matches the Simulator can still be wrong on the device. The runtime tests
+(`InteropLayoutTests`) check the structs that contain enums on both.
 
 ## `tools/fixup_vfp.py`
 

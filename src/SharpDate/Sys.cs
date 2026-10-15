@@ -77,7 +77,8 @@ namespace Playdate
         /// <summary>Current button state plus buttons pushed and released since the last update.</summary>
         public static void GetButtonState(out Buttons current, out Buttons pushed, out Buttons released)
         {
-            Buttons c, p, r;
+            // PDButtons is a 1-byte enum on the device: the firmware writes only the low byte.
+            Buttons c = 0, p = 0, r = 0;
             Api->getButtonState(&c, &p, &r);
             current = c;
             pushed = p;
