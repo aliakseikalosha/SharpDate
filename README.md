@@ -39,58 +39,46 @@ public sealed class HelloWorldGame : Game
 | | |
 |---|---|
 | Playdate C API (SDK 3.1) | Complete raw bindings (generated, layout-verified) + idiomatic wrappers for graphics, sprites, system, display, files, sound, JSON, Lua, scoreboards, networking |
-| Simulator (macOS x86_64 / arm64) | Working — all 12 examples run (verified headlessly, see `tools/simtest.py`) |
+| Playdate device | **Runs on hardware**: verified on a Playdate with the runtime test suite (118/118), the C#-only 3D demo and the Demos launcher |
+| Simulator (macOS x86_64 / arm64) | Working; all examples verified (`tools/simtest.py`) |
 | Simulator (Linux) | Build path implemented, untested |
 | Simulator (Windows) | Not supported yet |
-| Device (Cortex‑M7) | Builds and links; `pdc` accepts the binaries; instruction set and relocations checked. **Not yet run on hardware.** |
 
-## Requirements
-
-- [.NET SDK 10](https://dotnet.microsoft.com/download) (the build downloads the matching ILCompiler package)
-- [Playdate SDK](https://play.date/dev/) (found via `PLAYDATE_SDK_PATH`, `~/.Playdate/config`, or `~/Developer/PlaydateSDK`)
-- clang (Xcode command line tools) for the Simulator library
-- `arm-none-eabi-gcc` ([Arm GNU toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads), as for C Playdate development) for device builds — optional; without it only the Simulator is built
-
-## Getting started
+## Quick start
 
 ```bash
-cd examples/HelloWorld
-dotnet build
+cd examples/Demos
+dotnet build -t:Run                     # all examples in one pdx, opened in the Simulator
+dotnet build -c Release -t:Deploy       # install and run on a USB-connected Playdate
 ```
+
+New game from the template:
 
 ```bash
-dotnet build -t:Run
+dotnet new install templates/SharpDateGame
+dotnet new sharpdate -n MyGame --sharpdate path/to/SharpDate --bundleId com.example.mygame
+cd MyGame && dotnet build -t:Run
 ```
 
-The second command builds and opens the game in the Playdate Simulator. Release builds
-(`-c Release`) produce a universal x86_64 + arm64 Simulator library on macOS.
+VS Code: open the folder and use **Terminal → Run Task** (Build / Run in Simulator / Install and
+run on Playdate / Runtime tests).
 
-### Your own game
+Requirements: .NET SDK 10, the Playdate SDK, clang, and `arm-none-eabi-gcc` + Python 3 for device
+builds. Details: [docs/getting-started.md](docs/getting-started.md).
 
-Create a class library next to the examples (or anywhere) and import the SharpDate build files:
+## Documentation
 
-```xml
-<!-- MyGame/MyGame.csproj -->
-<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="path/to/SharpDate/build/SharpDate.Game.props" />
-  <PropertyGroup>
-    <PlaydateGameName>MyGame</PlaydateGameName>
-    <PlaydateBundleId>com.example.mygame</PlaydateBundleId>
-  </PropertyGroup>
-</Project>
-```
-
-…and `path/to/SharpDate/build/SharpDate.Game.targets` from a `Directory.Build.targets` (it must be
-imported after the .NET SDK targets; `examples/Directory.Build.*` show the pattern). Put images,
-sounds, fonts, `pdxinfo` and any Lua files in `Source/`.
+- [Getting started](docs/getting-started.md) · [API guide](docs/api-guide.md) · [Porting from C](docs/porting-from-c.md)
+- [Running on a Playdate](docs/device.md) · [How it works](docs/how-it-works.md) · [Tools and testing](docs/tools-and-testing.md)
 
 ## Examples
 
-Ports of every C example in the Playdate SDK (`C_API/Examples`), kept close to the originals.
-Assets are taken from your SDK installation at build time.
+Ports of every C example in the Playdate SDK (`C_API/Examples`), kept close to the originals, plus a
+launcher and a C#-only version of the 3D example. Assets come from your SDK installation at build time.
 
 | Example | Shows |
 |---|---|
+| [Demos](examples/Demos) | **All the C# examples in one pdx, picked from a menu** |
 | [HelloWorld](examples/HelloWorld) | fonts, text, the `Game` class |
 | [Life](examples/Life) | Conway's Life directly on the 1-bit frame buffer |
 | [Tilemap](examples/Tilemap) | `TileMap`, image tables |
@@ -98,11 +86,12 @@ Assets are taken from your SDK installation at build time.
 | [Json](examples/Json) | streaming JSON decoder callbacks; `Json.Parse` document API |
 | [SpriteGame](examples/SpriteGame) | shoot-em-up: `Sprite` subclasses, collisions, crank, explosions |
 | [SpriteCollisions](examples/SpriteCollisions) | bounce responses, custom draw, line queries |
+| [Lib3DCSharp](examples/Lib3DCSharp) | the SDK's 3D scenes in pure C# (no Lua) on the [Mini3D](examples/Mini3D) library |
+| [Lib3D](examples/Lib3D) | the same engine exposed to Lua, running the SDK's original Lua scenes |
 | [Exposure](examples/Exposure) | a C# function called from Lua (`image:popcount()`) |
 | [Array](examples/Array) | a C# class exposed to Lua that behaves like a table |
 | [Particles](examples/Particles) | a C# particle system driven from Lua |
 | [Networking](examples/Networking) | HTTP and TCP (run the SDK's `Examples/networking/server/server.py`) |
-| [Lib3D](examples/Lib3D) | the mini3d engine (math, scene graph, z-buffered rasterizer) in C#, scripted from Lua |
 
 ## The API
 

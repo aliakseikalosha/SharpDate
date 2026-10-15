@@ -72,6 +72,23 @@ def pdutil(serial, *args):
     subprocess.run([tool, serial] + list(args), check=True)
 
 
+def copy_tree(source, target):
+    """Copies files without metadata, so macOS doesn't leave ._ AppleDouble files on the FAT volume."""
+    for root, dirs, files in os.walk(source):
+        rel = os.path.relpath(root, source)
+        os.makedirs(os.path.join(target, rel), exist_ok=True)
+        for name in files:
+            if not name.startswith("._") and name != ".DS_Store":
+                shutil.copyfile(os.path.join(root, name), os.path.join(target, rel, name))
+
+
+def remove_apple_double(path):
+    parent, name = os.path.split(path)
+    sidecar = os.path.join(parent, "._" + name)
+    if os.path.exists(sidecar):
+        os.remove(sidecar)
+
+
 def mount(serial):
     pdutil(serial, "datadisk")
     return wait_for(lambda: next((m for m in mount_points() if os.path.isdir(os.path.join(m, "Games"))), None), 60, "the Playdate data disk to mount")
@@ -112,7 +129,8 @@ def main():
     print("copying %s -> %s" % (name, target))
     if os.path.exists(target):
         shutil.rmtree(target)
-    shutil.copytree(pdx, target)
+    remove_apple_double(target)
+    copy_tree(pdx, target)
 
     if bundle:
         data_dir = os.path.join(volume, "Data", bundle)
