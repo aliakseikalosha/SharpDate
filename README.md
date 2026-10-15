@@ -31,18 +31,19 @@ public sealed class HelloWorldGame : Game
 }
 ```
 
-`dotnet build` turns that into `HelloWorld.pdx`, containing `pdex.dylib` for the Simulator and
-`pdex.bin` for the device.
+`dotnet build` turns that into `HelloWorld.pdx`, containing the Simulator library (`pdex.dylib`,
+`pdex.so` or `pdex.dll`) and `pdex.bin` for the device.
 
 ## Status
 
 | | |
 |---|---|
 | Playdate C API (SDK 3.1) | Complete raw bindings (generated, layout-verified) + idiomatic wrappers for graphics, sprites, system, display, files, sound, JSON, Lua, scoreboards, networking |
-| Playdate device | **Runs on hardware**: verified on a Playdate with the runtime test suite (118/118), the C#-only 3D demo and the Demos launcher |
-| Simulator (macOS x86_64 / arm64) | Working; all examples verified (`tools/simtest.py`) |
-| Simulator (Linux) | Build path implemented, untested |
-| Simulator (Windows) | Not supported yet |
+| Playdate device | **Runs on hardware**: verified on a Playdate with the runtime test suite (126/126), the C#-only 3D demo and the Demos launcher |
+| Simulator, macOS (x86_64 / arm64) | Working; all examples verified (`tools/simtest.py`) |
+| Simulator, Linux (x86_64) | Working; examples verified in the Linux Simulator, runtime tests pass |
+| Simulator, Windows (x64) | `pdex.dll` built with LLVM only; runtime tests pass (Wine). Not yet run in the Windows Simulator |
+| Build hosts | macOS, Linux, Windows; one pdx can hold the Simulator code for all three |
 
 ## Quick start
 
@@ -63,8 +64,8 @@ cd MyGame && dotnet build -t:Run
 VS Code: open the folder and use **Terminal → Run Task** (Build / Run in Simulator / Install and
 run on Playdate / Runtime tests).
 
-Requirements: .NET SDK 10, the Playdate SDK, clang, and `arm-none-eabi-gcc` + Python 3 for device
-builds. Details: [docs/getting-started.md](docs/getting-started.md).
+Requirements: .NET SDK 10, the Playdate SDK, a C compiler (Xcode tools on macOS, clang or gcc on Linux,
+LLVM on Windows), and `arm-none-eabi-gcc` + Python 3 for device builds. Details: [docs/getting-started.md](docs/getting-started.md).
 
 ## Documentation
 
@@ -119,7 +120,7 @@ Games whose main loop is Lua return `false` from `UsesUpdateCallback`.
 
 ```
  game.cs ─csc─▶ game.dll ┐
- SharpDate.dll ──────────┼─ILC (NativeAOT)─▶ game.o (x64/arm64 Mach-O)  ─clang──────▶ pdex.dylib ┐
+ SharpDate.dll ──────────┼─ILC (NativeAOT)─▶ game.o (Mach-O/ELF/COFF)   ─clang──────▶ pdex.dylib/.so/.dll ┐
  System.Private.CoreLib ─┘                 └▶ game.o (ARM32 ELF)          ─arm-gcc───▶ pdex.elf ──┼─pdc─▶ Game.pdx
                                               + sdrt.c, sdrt_*.S (runtime)                         ┘
 ```
@@ -154,7 +155,7 @@ Games whose main loop is Lua return `false` from `UsesUpdateCallback`.
 ## Testing
 
 ```bash
-tests/run-tests.sh
+python3 tests/run-tests.py        # or tests/run-tests.sh; py tests\run-tests.py on Windows
 ```
 
 Builds `tests/RuntimeTests` (Simulator + device) and runs it in `tests/MockHost`, a tiny program

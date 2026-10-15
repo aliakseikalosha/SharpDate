@@ -5,24 +5,50 @@
 // It provides object allocation, a non-moving mark-and-sweep garbage collector, GC handles,
 // the Playdate entry point, and the small set of helper functions that compiled managed code calls.
 //
-// The same file is compiled for the Simulator (clang, 64-bit host) and for the device
-// (arm-none-eabi-gcc, Cortex-M7). Platform-specific stubs live in sdrt_*.S.
+// The same file is compiled for the Simulator (clang, 64-bit macOS / Linux / Windows host) and for
+// the device (arm-none-eabi-gcc, Cortex-M7). Platform-specific stubs live in sdrt_*.S.
+//
+// Only freestanding headers are used (no C library headers), so the Windows build needs nothing
+// but LLVM; the C library functions the runtime and compiled code call (memcpy, sinf, ...) come
+// from the platform: newlib on the device, libc on macOS/Linux, ucrtbase.dll on Windows.
 
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdarg.h>
 
-#include "pd_api.h"
+#include "sdrt_pd.h"
 
 #if defined(__arm__)
 #define SD_DEVICE 1
 #else
 #define SD_DEVICE 0
-#include <pthread.h>
 #endif
 
+#if defined(_WIN32)
+#define SD_WINDOWS 1
+#else
+#define SD_WINDOWS 0
+#endif
+
+#if !SD_DEVICE && !SD_WINDOWS
+// pthread_t is pointer-sized on macOS and Linux; only equality is needed.
+typedef uintptr_t sd_thread_t;
+extern sd_thread_t pthread_self(void);
+#endif
+
+void* memcpy(void* dst, const void* src, size_t n);
+void* memset(void* dst, int c, size_t n);
+
+#if SD_WINDOWS
+// Exported from the DLL: only the entry point. Everything else is linked statically.
+#define SD_EXPORT
+#define SD_ENTRY __declspec(dllexport)
+// Referenced by MSVC-ABI code that uses floating point; normally defined by the static CRT.
+int _fltused = 0;
+#else
 #define SD_EXPORT __attribute__((visibility("default")))
+#define SD_ENTRY SD_EXPORT
+#endif
 #define SD_NOINLINE __attribute__((noinline))
 #define SD_UNUSED __attribute__((unused))
 
@@ -246,8 +272,22 @@ static size_t sd_root_capacity;
 // Native stack range for conservative scanning (stack grows down on all supported targets).
 static uintptr_t sd_stack_top;
 static int sd_managed_depth;
-#if !SD_DEVICE
-static pthread_t sd_main_thread;
+#if SD_WINDOWS
+static uintptr_t sd_main_thread;
+
+// The current thread's id from the TEB (ClientId.UniqueThread), without importing kernel32.
+static uintptr_t current_thread_id(void)
+{
+	uintptr_t id;
+#if defined(__x86_64__)
+	__asm__ volatile("movq %%gs:0x48, %0" : "=r"(id));
+#else
+	__asm__ volatile("ldr %0, [x18, #0x48]" : "=r"(id));
+#endif
+	return id;
+}
+#elif !SD_DEVICE
+static sd_thread_t sd_main_thread;
 #endif
 
 static int on_main_context(void)
@@ -256,8 +296,10 @@ static int on_main_context(void)
 	uint32_t ipsr;
 	__asm__ volatile("mrs %0, ipsr" : "=r"(ipsr));
 	return ipsr == 0; // not inside an interrupt handler (audio callbacks)
+#elif SD_WINDOWS
+	return current_thread_id() == sd_main_thread;
 #else
-	return pthread_equal(pthread_self(), sd_main_thread);
+	return pthread_self() == sd_main_thread;
 #endif
 }
 
@@ -868,7 +910,9 @@ SD_EXPORT float sd_parse_float(const char* s, int length)
 static void runtime_initialize(PlaydateAPI* pd)
 {
 	sd_pd = pd;
-#if !SD_DEVICE
+#if SD_WINDOWS
+	sd_main_thread = current_thread_id();
+#elif !SD_DEVICE
 	sd_main_thread = pthread_self();
 #endif
 	void* headers[1] = { &__ReadyToRunHeader };
@@ -876,10 +920,7 @@ static void runtime_initialize(PlaydateAPI* pd)
 	sd_initialized = 1;
 }
 
-#ifdef _WINDLL
-__declspec(dllexport)
-#endif
-SD_EXPORT int eventHandler(PlaydateAPI* pd, PDSystemEvent event, uint32_t arg)
+SD_ENTRY int eventHandler(PlaydateAPI* pd, PDSystemEvent event, uint32_t arg)
 {
 	volatile uintptr_t frame = 0;
 	uintptr_t top = (uintptr_t)&frame + 256;

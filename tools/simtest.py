@@ -11,7 +11,6 @@ Exit code 0 when a frame was captured.
 
 import argparse
 import os
-import platform
 import shutil
 import struct
 import subprocess
@@ -19,24 +18,7 @@ import sys
 import time
 import zlib
 
-
-def sdk_path():
-    path = os.environ.get("PLAYDATE_SDK_PATH")
-    if path:
-        return path
-    config = os.path.expanduser("~/.Playdate/config")
-    if os.path.exists(config):
-        for line in open(config):
-            if line.startswith("SDKRoot"):
-                return line.split(None, 1)[1].strip()
-    return os.path.expanduser("~/Developer/PlaydateSDK")
-
-
-def bundle_id(pdx):
-    for line in open(os.path.join(pdx, "pdxinfo"), encoding="utf-8"):
-        if line.startswith("bundleID="):
-            return line.split("=", 1)[1].strip()
-    raise SystemExit("pdxinfo has no bundleID")
+from playdate_sdk import bundle_id, sdk_path, simulator
 
 
 def pbm_to_png(pbm_path, png_path):
@@ -70,7 +52,10 @@ def main():
 
     pdx = os.path.abspath(args.pdx)
     sdk = sdk_path()
-    data_dir = os.path.join(sdk, "Disk", "Data", bundle_id(pdx))
+    bundle = bundle_id(pdx)
+    if not bundle:
+        raise SystemExit("pdxinfo has no bundleID")
+    data_dir = os.path.join(sdk, "Disk", "Data", bundle)
     os.makedirs(data_dir, exist_ok=True)
     for name in ("sharpdate_capture.pbm", "sharpdate_log.txt"):
         if os.path.exists(os.path.join(data_dir, name)):
@@ -78,11 +63,7 @@ def main():
     with open(os.path.join(data_dir, "sharpdate_capture"), "w") as f:
         f.write(str(args.frame))
 
-    if platform.system() == "Darwin":
-        sim = os.path.join(sdk, "bin", "Playdate Simulator.app", "Contents", "MacOS", "Playdate Simulator")
-    else:
-        sim = os.path.join(sdk, "bin", "PlaydateSimulator")
-    proc = subprocess.Popen([sim, pdx], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen([simulator(), pdx], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     capture = os.path.join(data_dir, "sharpdate_capture.pbm")
     deadline = time.time() + args.timeout

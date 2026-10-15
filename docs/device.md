@@ -14,14 +14,21 @@ dotnet build -c Release -t:Deploy
 
 The `Deploy` target (`tools/deploy.py`):
 
-1. finds the Playdate's serial port (`/dev/cu.usbmodemPD*` on macOS, `/dev/ttyACM*` on Linux),
-2. switches it to data-disk mode with `pdutil <port> datadisk` and waits for the `PLAYDATE` volume,
+1. finds the Playdate's serial port (`/dev/cu.usbmodemPD*` on macOS, `/dev/serial/by-id/*Playdate*`
+   or `/dev/ttyACM*` on Linux, the COM port of the Panic USB device on Windows),
+2. switches it to data-disk mode with `pdutil <port> datadisk` and waits for the `PLAYDATE` volume
+   (on Linux it is mounted with `udisksctl` if the desktop doesn't do it),
 3. copies the pdx to `/Games/<Name>.pdx` (replacing an older copy),
 4. ejects the volume and waits for the device to come back,
 5. launches the game with `pdutil <port> run /Games/<Name>.pdx`.
 
 With several devices connected, choose one: `dotnet build -c Release -t:Deploy -p:PlaydateSerialPort=/dev/cu.usbmodemPDU1_Y0012345`.
-`tools/deploy.py` also works on any existing pdx: `python3 tools/deploy.py MyGame.pdx [--no-run]`.
+Ports look like `/dev/ttyACM0` on Linux and `COM5` on Windows.
+`tools/deploy.py` also works on any existing pdx: `python3 tools/deploy.py MyGame.pdx [--no-run]`
+(`py tools\deploy.py ...` on Windows).
+
+On Linux your user needs access to the serial port: install the SDK's udev rule (the SDK's
+`setup.sh` does it) or add yourself to the `dialout` group.
 
 ## From VS Code
 
@@ -45,7 +52,7 @@ python3 tools/deploy.py tests/RuntimeTests/bin/Release/RuntimeTests.pdx \
 
 When `sharpdate_capture` exists in the data folder, the game mirrors `Sys.Log` to
 `sharpdate_log.txt` and saves frame N as `sharpdate_capture.pbm` (see `DevCapture` in
-`src/SharpDate/PD.cs`). The runtime test suite passes on hardware (118/118).
+`src/SharpDate/PD.cs`). The runtime test suite passes on hardware (126/126).
 
 ## Performance notes
 

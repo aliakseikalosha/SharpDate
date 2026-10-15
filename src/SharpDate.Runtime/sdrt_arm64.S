@@ -75,6 +75,6 @@ SYM(RhpInterfaceDispatchSlow):
     ldp     x29, x30, [sp], #224
     br      x16
 
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(_WIN32)
     .section .note.GNU-stack,"",%progbits
 #endif

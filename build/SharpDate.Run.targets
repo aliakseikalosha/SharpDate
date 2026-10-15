@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Running a SharpDate game in the Playdate Simulator. Imported after the .NET SDK's targets
+    (through AfterMicrosoftNETSdkTargets, set in SharpDate.Game.props) so that it replaces the SDK's
+    Run target:
+
+      dotnet build -t:Run   builds, opens the Simulator and returns
+      dotnet run            builds and runs the Simulator until it is closed (macOS: returns)
+  -->
+
+  <PropertyGroup Condition="'$(IsPlaydateGame)' == 'true'">
+    <RunCommand Condition="$(_SharpDateIsMac)">open</RunCommand>
+    <RunArguments Condition="$(_SharpDateIsMac)">-a &quot;$(_SharpDateSimulatorExe)&quot; &quot;$(PlaydatePdxPath)&quot;</RunArguments>
+    <RunCommand Condition="!$(_SharpDateIsMac)">$(_SharpDateSimulatorExe)</RunCommand>
+    <RunArguments Condition="!$(_SharpDateIsMac)">&quot;$(PlaydatePdxPath)&quot;</RunArguments>
+    <RunWorkingDirectory>$(MSBuildProjectDirectory)</RunWorkingDirectory>
+  </PropertyGroup>
+
+  <Target Name="Run" DependsOnTargets="Build" Condition="'$(IsPlaydateGame)' == 'true'">
+    <Error Condition="!Exists('$(_SharpDateSimulatorExe)')" Text="Playdate Simulator not found at '$(_SharpDateSimulatorExe)'." />
+    <Exec Condition="$(_SharpDateIsMac)" Command="open -a &quot;$(_SharpDateSimulatorExe)&quot; &quot;$(PlaydatePdxPath)&quot;" />
+    <Exec Condition="$(_SharpDateIsLinux)" Command="nohup &quot;$(_SharpDateSimulatorExe)&quot; &quot;$(PlaydatePdxPath)&quot; &gt;/dev/null 2&gt;&amp;1 &amp;" />
+    <Exec Condition="$(_SharpDateIsWindows)" Command="start &quot;&quot; &quot;$(_SharpDateSimulatorExe)&quot; &quot;$(PlaydatePdxPath)&quot;" />
+  </Target>
+</Project>

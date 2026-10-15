@@ -5,7 +5,7 @@ a small runtime of its own. There is no interpreter and no JIT at run time.
 
 ```
  MyGame.cs ──csc──▶ MyGame.dll ┐
- SharpDate.dll (Playdate API)  ├─ ILC ──▶ game.o (osx-x64 / osx-arm64 / linux-x64)  ─ clang ──────────▶ pdex.dylib/.so ┐
+ SharpDate.dll (Playdate API)  ├─ ILC ──▶ game.o (osx-x64/arm64, linux-x64, windows-x64) ─ clang/gcc, lld-link ▶ pdex.dylib/.so/.dll ┐
  System.Private.CoreLib.dll    ┘      └─▶ game.o (linux-arm: Thumb-2, hard-float ELF) ─ arm-none-eabi-gcc ▶ pdex.elf ───┼─ pdc ─▶ MyGame.pdx
                                          + src/SharpDate.Runtime (sdrt.c, sdrt_*.S)                                    ┘
 ```
@@ -19,6 +19,17 @@ a small runtime of its own. There is no interpreter and no JIT at run time.
 | `src/SharpDate` | Playdate API: generated bindings (`Native/PlaydateApi.g.cs`) and wrappers |
 | `build/SharpDate.Game.props/.targets` | MSBuild glue: runs ILC per target, links, fixes up, runs `pdc` |
 | `tools/` | Bindings generator, deploy, Simulator capture, VFP fix-up |
+
+## Desktop platforms
+
+The Simulator library is the same code on every system, compiled by ILC for the host's OS and CPU:
+a Mach-O `pdex.dylib` on macOS, an ELF `pdex.so` on Linux and a COFF `pdex.dll` on Windows. The
+native runtime only uses freestanding C headers (it declares the few Playdate API members it needs
+in `sdrt_pd.h`), so the Windows build needs nothing but clang and lld-link: the DLL has no entry
+point, exports only `eventHandler`, and imports the handful of C library functions compiled code
+calls (`memset`, `sinf`, ...) from `ucrtbase.dll`, which is part of Windows 10 and 11. The assembly
+stubs (`sdrt_x64.S`) have System V and Windows x64 variants of the write barrier and the interface
+dispatch stub.
 
 ## Why a custom CoreLib
 
@@ -90,7 +101,6 @@ the device:
 | `double` on device | Single-precision FPU; use `float` and `MathF` |
 | Finalizers | Never run; use `Dispose` |
 | `[ThreadStatic]` | Not supported |
-| Windows host | The Simulator library needs a COFF build of the runtime; not done yet |
 
 Contracts with the compiler (MethodTable layout, module headers, GC descriptors, dispatch cells,
 delegate fields...) follow the .NET runtime sources (MIT); see `THIRD-PARTY-NOTICES.md`.

@@ -1,16 +1,22 @@
-// Loads a SharpDate game's Simulator library (pdex.dylib/.so) with a minimal fake PlaydateAPI and
-// sends it kEventInit. Used to run tests/RuntimeTests without the Playdate Simulator.
-// Exit code: 0 on success, 2 if the game logged a FAIL, 3 if it called pd->system->error.
+// Loads a SharpDate game's Simulator library (pdex.dylib/.so/.dll) with a minimal fake PlaydateAPI
+// and sends it kEventInit. Used to run tests/RuntimeTests without the Playdate Simulator.
+// Exit code: 0 on success, 2 if the game logged a FAIL, 3 if it called pd->system->error,
+// 4 on a crash.
 
-#include <dlfcn.h>
-#include <execinfo.h>
-#include <signal.h>
-#include <unistd.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
 #include <sys/time.h>
+#endif
 
 #include "pd_api.h"
 
@@ -47,6 +53,21 @@ static void mock_error(const char* fmt, ...)
 	exit(3);
 }
 
+#ifdef _WIN32
+static unsigned int mock_ms(void)
+{
+	return (unsigned)GetTickCount64();
+}
+
+static unsigned int mock_seconds(unsigned int* ms)
+{
+	FILETIME ft;
+	GetSystemTimeAsFileTime(&ft);
+	unsigned long long t = (((unsigned long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime) / 10000; // ms since 1601
+	if (ms) *ms = (unsigned)(t % 1000);
+	return (unsigned)(t / 1000 - 11644473600ull);
+}
+#else
 static unsigned int mock_ms(void)
 {
 	struct timeval tv;
@@ -61,6 +82,7 @@ static unsigned int mock_seconds(unsigned int* ms)
 	if (ms) *ms = (unsigned)(tv.tv_usec / 1000);
 	return (unsigned)tv.tv_sec;
 }
+#endif
 
 static PDCallbackFunction* update_callback;
 static void* update_userdata;
@@ -74,6 +96,35 @@ static void mock_set_update(PDCallbackFunction* update, void* userdata)
 static SDFile* mock_open(const char* name, FileOptions mode) { (void)name; (void)mode; return NULL; }
 static const char* mock_geterr(void) { return "no file system in mock host"; }
 
+#ifdef _WIN32
+static LONG WINAPI crash_handler(EXCEPTION_POINTERS* info)
+{
+	printf("CRASH: exception 0x%08lx at %p (address %p)\n", info->ExceptionRecord->ExceptionCode,
+		info->ExceptionRecord->ExceptionAddress,
+		info->ExceptionRecord->NumberParameters > 1 ? (void*)info->ExceptionRecord->ExceptionInformation[1] : NULL);
+	fflush(stdout);
+	ExitProcess(4);
+	return EXCEPTION_EXECUTE_HANDLER;
+}
+
+static void install_crash_handler(void)
+{
+	SetUnhandledExceptionFilter(crash_handler);
+}
+
+static void* load_library(const char* path)
+{
+	HMODULE lib = LoadLibraryA(path);
+	if (lib == NULL)
+		fprintf(stderr, "LoadLibrary(%s) failed: error %lu\n", path, GetLastError());
+	return lib;
+}
+
+static void* find_symbol(void* lib, const char* name)
+{
+	return (void*)GetProcAddress((HMODULE)lib, name);
+}
+#else
 static void crash_handler(int sig, siginfo_t* info, void* context)
 {
 	(void)context;
@@ -85,7 +136,7 @@ static void crash_handler(int sig, siginfo_t* info, void* context)
 	_exit(4);
 }
 
-int main(int argc, char** argv)
+static void install_crash_handler(void)
 {
 	struct sigaction sa;
 	memset(&sa, 0, sizeof(sa));
@@ -94,10 +145,29 @@ int main(int argc, char** argv)
 	sigaction(SIGSEGV, &sa, NULL);
 	sigaction(SIGBUS, &sa, NULL);
 	sigaction(SIGILL, &sa, NULL);
+}
+
+static void* load_library(const char* path)
+{
+	void* lib = dlopen(path, RTLD_NOW);
+	if (lib == NULL)
+		fprintf(stderr, "dlopen: %s\n", dlerror());
+	return lib;
+}
+
+static void* find_symbol(void* lib, const char* name)
+{
+	return dlsym(lib, name);
+}
+#endif
+
+int main(int argc, char** argv)
+{
+	install_crash_handler();
 
 	if (argc < 2)
 	{
-		fprintf(stderr, "usage: mockhost <pdex.dylib> [frames]\n");
+		fprintf(stderr, "usage: mockhost <pdex.dylib|pdex.so|pdex.dll> [frames]\n");
 		return 1;
 	}
 
@@ -117,14 +187,11 @@ int main(int argc, char** argv)
 	api.system = &sys;
 	api.file = &file;
 
-	void* lib = dlopen(argv[1], RTLD_NOW);
+	void* lib = load_library(argv[1]);
 	if (lib == NULL)
-	{
-		fprintf(stderr, "dlopen: %s\n", dlerror());
 		return 1;
-	}
 
-	int (*eventHandler)(PlaydateAPI*, PDSystemEvent, uint32_t) = dlsym(lib, "eventHandler");
+	int (*eventHandler)(PlaydateAPI*, PDSystemEvent, uint32_t) = (int (*)(PlaydateAPI*, PDSystemEvent, uint32_t))find_symbol(lib, "eventHandler");
 	if (eventHandler == NULL)
 	{
 		fprintf(stderr, "eventHandler not found\n");

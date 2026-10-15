@@ -24,6 +24,9 @@
     <!-- CA2255: games register themselves with [ModuleInitializer] by design. -->
     <NoWarn>$(NoWarn);CA2255</NoWarn>
 
+    <!-- The .NET SDK defines its own Run target after Directory.Build.targets; ours must come later. -->
+    <AfterMicrosoftNETSdkTargets>$(AfterMicrosoftNETSdkTargets);$(MSBuildThisFileDirectory)SharpDate.Run.targets</AfterMicrosoftNETSdkTargets>
+
     <!-- Folder with pdxinfo, images, sounds, fonts, Lua sources... copied into the pdx. -->
     <PlaydateSourceDir>$(MSBuildProjectDirectory)/Source</PlaydateSourceDir>
   </PropertyGroup>

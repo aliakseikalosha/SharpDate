@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Installs a .pdx on a Playdate connected over USB and launches it.
+"""Installs a .pdx on a Playdate connected over USB and launches it (macOS, Linux, Windows).
 
-Usage: tools/deploy.py <game.pdx> [--serial /dev/cu.usbmodemPDU1_...] [--no-run]
+Usage: tools/deploy.py <game.pdx> [--serial PORT] [--no-run]
                        [--data FILE=CONTENT ...] [--fetch NAME ...] [--fetch-after SECONDS]
 
 Steps: pdutil <serial> datadisk -> copy to /Games -> eject -> wait for the device -> pdutil run.
+PORT is /dev/cu.usbmodemPD... on macOS, /dev/serial/by-id/...Playdate... or /dev/ttyACM0 on Linux,
+and COM3 (etc.) on Windows; by default the first Playdate found is used.
 
 --data writes files into the game's /Data/<bundleID>/ folder while the disk is mounted, and
 --fetch copies files from that folder back after the game has run for --fetch-after seconds
@@ -14,27 +16,71 @@ Steps: pdutil <serial> datadisk -> copy to /Games -> eject -> wait for the devic
 import argparse
 import glob
 import os
-import platform
 import shutil
 import subprocess
 import sys
 import time
 
+from playdate_sdk import IS_MAC, IS_WINDOWS, bundle_id, tool
 
-def sdk_path():
-    path = os.environ.get("PLAYDATE_SDK_PATH")
-    if path:
-        return path
-    config = os.path.expanduser("~/.Playdate/config")
-    if os.path.exists(config):
-        for line in open(config):
-            if line.startswith("SDKRoot"):
-                return line.split(None, 1)[1].strip()
-    return os.path.expanduser("~/Developer/PlaydateSDK")
+PLAYDATE_USB_VENDOR = "1331"   # Panic
+
+
+# ---- Serial port -------------------------------------------------------------------------------
+
+def windows_playdate_ports():
+    """COM ports of connected Playdates, from the registry (USB VID 1331 devices that are present)."""
+    import winreg
+    present = set()
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DEVICEMAP\SERIALCOMM") as key:
+            i = 0
+            while True:
+                try:
+                    present.add(winreg.EnumValue(key, i)[1])
+                    i += 1
+                except OSError:
+                    break
+    except OSError:
+        return []
+    ports = []
+    try:
+        usb = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum\USB")
+    except OSError:
+        return []
+    with usb:
+        i = 0
+        while True:
+            try:
+                device = winreg.EnumKey(usb, i)
+                i += 1
+            except OSError:
+                break
+            if not device.upper().startswith("VID_" + PLAYDATE_USB_VENDOR):
+                continue
+            with winreg.OpenKey(usb, device) as device_key:
+                j = 0
+                while True:
+                    try:
+                        instance = winreg.EnumKey(device_key, j)
+                        j += 1
+                    except OSError:
+                        break
+                    try:
+                        with winreg.OpenKey(device_key, instance + r"\Device Parameters") as params:
+                            port = winreg.QueryValueEx(params, "PortName")[0]
+                    except OSError:
+                        continue
+                    if port in present and port not in ports:
+                        ports.append(port)
+    return sorted(ports)
 
 
 def find_serial():
-    patterns = ["/dev/cu.usbmodemPD*"] if platform.system() == "Darwin" else ["/dev/serial/by-id/*Playdate*", "/dev/ttyACM*"]
+    if IS_WINDOWS:
+        ports = windows_playdate_ports()
+        return ports[0] if ports else None
+    patterns = ["/dev/cu.usbmodemPD*"] if IS_MAC else ["/dev/serial/by-id/*Playdate*", "/dev/ttyACM*"]
     for pattern in patterns:
         ports = sorted(glob.glob(pattern))
         if ports:
@@ -42,11 +88,56 @@ def find_serial():
     return None
 
 
-def mount_points():
+def serial_present(serial):
+    if IS_WINDOWS:
+        return serial in windows_playdate_ports()
+    return os.path.exists(serial)
+
+
+# ---- Data disk ---------------------------------------------------------------------------------
+
+def windows_playdate_drive():
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    mask = kernel32.GetLogicalDrives()
+    for i in range(26):
+        if not mask & (1 << i):
+            continue
+        root = "%c:\\" % (65 + i)
+        label = ctypes.create_unicode_buffer(261)
+        if kernel32.GetVolumeInformationW(root, label, 261, None, None, None, None, 0) and label.value == "PLAYDATE":
+            return root
+    return None
+
+
+def linux_mount_points():
     user = os.environ.get("USER", "")
-    if platform.system() == "Darwin":
-        return ["/Volumes/PLAYDATE"]
     return ["/media/%s/PLAYDATE" % user, "/run/media/%s/PLAYDATE" % user, "/media/PLAYDATE", "/mnt/PLAYDATE"]
+
+
+def find_volume():
+    if IS_WINDOWS:
+        return windows_playdate_drive()
+    if IS_MAC:
+        candidates = ["/Volumes/PLAYDATE"]
+    else:
+        candidates = linux_mount_points()
+    for m in candidates:
+        if os.path.isdir(os.path.join(m, "Games")):
+            return m
+    if not IS_MAC and os.path.exists("/dev/disk/by-label/PLAYDATE"):
+        # Not mounted automatically (no desktop session): mount it through udisks.
+        result = subprocess.run(["udisksctl", "mount", "-b", "/dev/disk/by-label/PLAYDATE"],
+                                capture_output=True, text=True)
+        if result.returncode == 0:
+            for m in linux_mount_points():
+                if os.path.isdir(os.path.join(m, "Games")):
+                    return m
+            # "Mounted /dev/sdb1 at /media/user/PLAYDATE"
+            words = result.stdout.strip().rstrip(".").split(" at ")
+            if len(words) == 2 and os.path.isdir(os.path.join(words[1], "Games")):
+                return words[1]
+    return None
 
 
 def wait_for(predicate, timeout, what):
@@ -59,17 +150,9 @@ def wait_for(predicate, timeout, what):
     raise SystemExit("timed out waiting for " + what)
 
 
-def bundle_id(pdx):
-    for line in open(os.path.join(pdx, "pdxinfo"), encoding="utf-8"):
-        if line.startswith("bundleID="):
-            return line.split("=", 1)[1].strip()
-    return None
-
-
 def pdutil(serial, *args):
-    tool = os.path.join(sdk_path(), "bin", "pdutil")
     print("pdutil", serial, " ".join(args))
-    subprocess.run([tool, serial] + list(args), check=True)
+    subprocess.run([tool("pdutil"), serial] + list(args), check=True)
 
 
 def copy_tree(source, target):
@@ -90,21 +173,35 @@ def remove_apple_double(path):
 
 
 def mount(serial=None):
-    if serial is None or not os.path.exists(serial):
+    if serial is None or not serial_present(serial):
         serial = wait_for(find_serial, 60, "the Playdate serial port")
         time.sleep(1)
     pdutil(serial, "datadisk")
-    return wait_for(lambda: next((m for m in mount_points() if os.path.isdir(os.path.join(m, "Games"))), None), 60, "the Playdate data disk to mount")
+    return wait_for(find_volume, 60, "the Playdate data disk to mount")
 
 
 def eject(volume):
-    if platform.system() == "Darwin":
+    """Unmounts the data disk; the Playdate then leaves disk mode."""
+    if IS_MAC:
         subprocess.run(["diskutil", "eject", volume], check=True)
+    elif IS_WINDOWS:
+        drive = volume.rstrip("\\")
+        script = "(New-Object -ComObject Shell.Application).NameSpace(17).ParseName('%s').InvokeVerb('Eject')" % drive
+        subprocess.run(["powershell", "-NoProfile", "-Command", script], check=True)
+        wait_for(lambda: windows_playdate_drive() is None, 30, "Windows to eject " + drive)
     else:
         subprocess.run(["sync"])
-        if subprocess.run(["udisksctl", "unmount", "-p", "block_device=" + volume]).returncode != 0:
+        device = subprocess.run(["findmnt", "-n", "-o", "SOURCE", "--target", volume],
+                                capture_output=True, text=True).stdout.strip()
+        if device and subprocess.run(["udisksctl", "unmount", "-b", device]).returncode == 0:
+            subprocess.run(["udisksctl", "power-off", "-b", device])
+        else:
             subprocess.run(["umount", volume], check=True)
+            if device:
+                subprocess.run(["eject", device])
 
+
+# ---- Main --------------------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser()
@@ -117,13 +214,20 @@ def main():
     parser.add_argument("--fetch-to", default=".")
     args = parser.parse_args()
 
-    pdx = os.path.abspath(args.pdx.rstrip("/"))
+    pdx = os.path.abspath(args.pdx.rstrip("/\\"))
     if not os.path.isfile(os.path.join(pdx, "pdxinfo")):
         raise SystemExit("%s is not a .pdx (no pdxinfo); build it first" % pdx)
     name = os.path.basename(pdx)
     bundle = bundle_id(pdx)
 
-    serial = args.serial or find_serial()
+    serial = args.serial
+    if not serial:
+        # Give a device that is still reconnecting (e.g. right after a previous deploy) a moment.
+        deadline = time.time() + 15
+        serial = find_serial()
+        while not serial and time.time() < deadline:
+            time.sleep(0.5)
+            serial = find_serial()
     if not serial:
         raise SystemExit("No Playdate found. Connect it over USB and unlock it.")
 
@@ -134,7 +238,7 @@ def main():
         shutil.rmtree(target)
     remove_apple_double(target)
     copy_tree(pdx, target)
-    if platform.system() == "Darwin":
+    if IS_MAC:
         # macOS writes ._ AppleDouble files for attributes it adds on FAT volumes; drop them.
         subprocess.run(["dot_clean", "-m", target])
         for root, dirs, files in os.walk(target):
@@ -160,7 +264,8 @@ def main():
 
     # After ejecting, the Playdate leaves disk mode and its serial port comes back.
     time.sleep(2)
-    serial = wait_for(lambda: args.serial if args.serial and os.path.exists(args.serial) else find_serial(), 60, "the Playdate to reconnect")
+    serial = wait_for(lambda: args.serial if args.serial and serial_present(args.serial) else find_serial(), 60,
+                      "the Playdate to reconnect")
     time.sleep(1)
 
     if args.no_run:
