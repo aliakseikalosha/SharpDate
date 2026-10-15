@@ -1,0 +1,233 @@
+<Project>
+  <!--
+    Turns a compiled SharpDate game assembly into a Playdate .pdx:
+
+      game.dll + SharpDate.dll + System.Private.CoreLib.dll
+        ─ ILC (.NET NativeAOT compiler) ─▶ game_<target>.o      (one per Simulator arch + one for the device)
+        ─ clang / arm-none-eabi-gcc     ─▶ pdex.dylib / pdex.elf  (linked with the SharpDate native runtime)
+        ─ pdc                           ─▶ <Name>.pdx
+
+    Properties you can set in the game project:
+      PlaydateGameName        Name of the .pdx and default pdxinfo name (default: assembly name)
+      PlaydateBundleId        pdxinfo bundleID when the project has no Source/pdxinfo
+      PlaydateAuthor, PlaydateDescription, PlaydateVersion
+      PlaydateSourceDir       Asset folder copied into the pdx (default: ./Source)
+      PlaydateSDKPath         Playdate SDK (default: $PLAYDATE_SDK_PATH, ~/.Playdate/config, ~/Developer/PlaydateSDK)
+      SharpDateBuildDevice    Build pdex.bin for the device (default: true when arm-none-eabi-gcc is found)
+      SharpDateBuildSimulator Build pdex.dylib/.so for the Simulator (default: true)
+      SharpDateUniversalSimulator  macOS: build x86_64+arm64 Simulator code (default: true for Release)
+  -->
+
+  <PropertyGroup>
+    <_SharpDateIsMac>$([MSBuild]::IsOSPlatform('OSX'))</_SharpDateIsMac>
+    <_SharpDateIsLinux>$([MSBuild]::IsOSPlatform('Linux'))</_SharpDateIsLinux>
+    <_SharpDateIsWindows>$([MSBuild]::IsOSPlatform('Windows'))</_SharpDateIsWindows>
+    <_SharpDateHostArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant())</_SharpDateHostArch>
+
+    <PlaydateGameName Condition="'$(PlaydateGameName)' == ''">$(AssemblyName)</PlaydateGameName>
+    <PlaydateBundleId Condition="'$(PlaydateBundleId)' == ''">dev.sharpdate.$(AssemblyName.ToLowerInvariant())</PlaydateBundleId>
+    <PlaydateAuthor Condition="'$(PlaydateAuthor)' == ''">SharpDate</PlaydateAuthor>
+    <PlaydateDescription Condition="'$(PlaydateDescription)' == ''">Made with SharpDate</PlaydateDescription>
+    <PlaydateVersion Condition="'$(PlaydateVersion)' == ''">1.0</PlaydateVersion>
+    <PlaydateBuildNumber Condition="'$(PlaydateBuildNumber)' == ''">1</PlaydateBuildNumber>
+
+    <!-- Locate the Playdate SDK -->
+    <PlaydateSDKPath Condition="'$(PlaydateSDKPath)' == ''">$(PLAYDATE_SDK_PATH)</PlaydateSDKPath>
+    <_SharpDatePlaydateConfig>$(HOME)/.Playdate/config</_SharpDatePlaydateConfig>
+    <_SharpDatePlaydateConfig Condition="$(_SharpDateIsWindows)">$(USERPROFILE)\.Playdate\config</_SharpDatePlaydateConfig>
+    <_SharpDatePlaydateConfigText Condition="'$(PlaydateSDKPath)' == '' and Exists('$(_SharpDatePlaydateConfig)')">$([System.IO.File]::ReadAllText('$(_SharpDatePlaydateConfig)'))</_SharpDatePlaydateConfigText>
+    <PlaydateSDKPath Condition="'$(PlaydateSDKPath)' == '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_SharpDatePlaydateConfigText)', 'SDKRoot'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_SharpDatePlaydateConfigText)', '(?s)^.*?SDKRoot[ \t]+([^\r\n]+).*$', '$1').Trim())</PlaydateSDKPath>
+    <PlaydateSDKPath Condition="'$(PlaydateSDKPath)' == '' and !$(_SharpDateIsWindows)">$(HOME)/Developer/PlaydateSDK</PlaydateSDKPath>
+    <PlaydateSDKPath Condition="'$(PlaydateSDKPath)' == '' and $(_SharpDateIsWindows)">$(USERPROFILE)\Documents\PlaydateSDK</PlaydateSDKPath>
+    <PlaydateSDKPath>$([MSBuild]::EnsureTrailingSlash('$(PlaydateSDKPath)'))</PlaydateSDKPath>
+    <_SharpDatePdc>$(PlaydateSDKPath)bin/pdc</_SharpDatePdc>
+    <_SharpDatePdc Condition="$(_SharpDateIsWindows)">$(PlaydateSDKPath)bin\pdc.exe</_SharpDatePdc>
+
+    <!-- Toolchains -->
+    <SharpDateArmGcc Condition="'$(SharpDateArmGcc)' == '' and Exists('/usr/local/bin/arm-none-eabi-gcc')">/usr/local/bin/arm-none-eabi-gcc</SharpDateArmGcc>
+    <SharpDateArmGcc Condition="'$(SharpDateArmGcc)' == '' and Exists('/opt/homebrew/bin/arm-none-eabi-gcc')">/opt/homebrew/bin/arm-none-eabi-gcc</SharpDateArmGcc>
+    <SharpDateArmGcc Condition="'$(SharpDateArmGcc)' == '' and Exists('/usr/bin/arm-none-eabi-gcc')">/usr/bin/arm-none-eabi-gcc</SharpDateArmGcc>
+    <_SharpDateArmObjdump>$([System.Text.RegularExpressions.Regex]::Replace('$(SharpDateArmGcc)', 'gcc$', 'objdump'))</_SharpDateArmObjdump>
+    <SharpDateHostCC Condition="'$(SharpDateHostCC)' == ''">clang</SharpDateHostCC>
+
+    <SharpDateBuildSimulator Condition="'$(SharpDateBuildSimulator)' == ''">true</SharpDateBuildSimulator>
+    <SharpDateBuildDevice Condition="'$(SharpDateBuildDevice)' == '' and '$(SharpDateArmGcc)' != ''">true</SharpDateBuildDevice>
+    <SharpDateBuildDevice Condition="'$(SharpDateBuildDevice)' == ''">false</SharpDateBuildDevice>
+    <SharpDateUniversalSimulator Condition="'$(SharpDateUniversalSimulator)' == '' and $(_SharpDateIsMac) and '$(Configuration)' == 'Release'">true</SharpDateUniversalSimulator>
+    <SharpDateUniversalSimulator Condition="'$(SharpDateUniversalSimulator)' == ''">false</SharpDateUniversalSimulator>
+
+    <!-- ILC from the NuGet package matching the installed .NET SDK -->
+    <SharpDateILCompilerVersion Condition="'$(SharpDateILCompilerVersion)' == ''">$(BundledNETCoreAppPackageVersion)</SharpDateILCompilerVersion>
+    <_SharpDateIlcPackage>runtime.$(NETCoreSdkRuntimeIdentifier).microsoft.dotnet.ilcompiler</_SharpDateIlcPackage>
+    <SharpDateIlcPath Condition="'$(SharpDateIlcPath)' == ''">$(NuGetPackageRoot)$(_SharpDateIlcPackage)/$(SharpDateILCompilerVersion)/tools/ilc</SharpDateIlcPath>
+    <SharpDateIlcPath Condition="$(_SharpDateIsWindows)">$(SharpDateIlcPath).exe</SharpDateIlcPath>
+
+    <!-- Paths -->
+    <_SharpDateRuntimeDir>$(SharpDateRoot)src/SharpDate.Runtime/</_SharpDateRuntimeDir>
+    <_SharpDateObjDir>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)sharpdate/</_SharpDateObjDir>
+    <_SharpDateStageDir>$(_SharpDateObjDir)pdx-source/</_SharpDateStageDir>
+    <PlaydatePdxPath Condition="'$(PlaydatePdxPath)' == ''">$(MSBuildProjectDirectory)/$(OutDir)$(PlaydateGameName).pdx</PlaydatePdxPath>
+    <_SharpDateSimLibName>pdex.dylib</_SharpDateSimLibName>
+    <_SharpDateSimLibName Condition="$(_SharpDateIsLinux)">pdex.so</_SharpDateSimLibName>
+    <_SharpDateIlcOs>osx</_SharpDateIlcOs>
+    <_SharpDateIlcOs Condition="$(_SharpDateIsLinux)">linux</_SharpDateIlcOs>
+    <_SharpDateIlcOptimize>-O</_SharpDateIlcOptimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Make sure the ILC package for this host is restored. -->
+    <PackageDownload Include="runtime.$(NETCoreSdkRuntimeIdentifier).Microsoft.DotNet.ILCompiler" Version="[$(SharpDateILCompilerVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(SharpDateBuildSimulator)' == 'true'">
+    <_SharpDateSimArch Include="x64" Condition="'$(_SharpDateHostArch)' == 'x64' or '$(SharpDateUniversalSimulator)' == 'true'">
+      <ClangArch>x86_64</ClangArch>
+      <Stubs>$(_SharpDateRuntimeDir)sdrt_x64.S</Stubs>
+    </_SharpDateSimArch>
+    <_SharpDateSimArch Include="arm64" Condition="'$(_SharpDateHostArch)' == 'arm64' or '$(SharpDateUniversalSimulator)' == 'true'">
+      <ClangArch>arm64</ClangArch>
+      <Stubs>$(_SharpDateRuntimeDir)sdrt_arm64.S</Stubs>
+    </_SharpDateSimArch>
+  </ItemGroup>
+
+  <ItemGroup>
+    <_SharpDateRuntimeSources Include="$(_SharpDateRuntimeDir)*.c;$(_SharpDateRuntimeDir)*.S;$(_SharpDateRuntimeDir)*.ld" />
+  </ItemGroup>
+
+  <Target Name="_SharpDateValidate">
+    <Error Condition="$(_SharpDateIsWindows)" Text="SharpDate does not support Windows hosts yet (the Simulator build needs a COFF runtime). Use macOS or Linux, or WSL." />
+    <Error Condition="!Exists('$(PlaydateSDKPath)C_API/pd_api.h')" Text="Playdate SDK not found at '$(PlaydateSDKPath)'. Set PLAYDATE_SDK_PATH or the PlaydateSDKPath property." />
+    <Error Condition="!Exists('$(SharpDateIlcPath)')" Text="ILCompiler not found at '$(SharpDateIlcPath)'. Run 'dotnet restore' (the package $(_SharpDateIlcPackage) $(SharpDateILCompilerVersion) is downloaded automatically)." />
+    <Warning Condition="'$(SharpDateBuildDevice)' != 'true'" Text="arm-none-eabi-gcc not found: building for the Playdate Simulator only. Install the Arm GNU toolchain to also build for the device." />
+  </Target>
+
+  <!-- Response-file arguments shared by every ILC invocation. -->
+  <Target Name="_SharpDateIlcCommon" DependsOnTargets="_SharpDateValidate">
+    <ItemGroup>
+      <_SharpDateIlcArg Include="@(IntermediateAssembly->'%(FullPath)')" />
+      <_SharpDateIlcArg Include="@(ReferencePath->'-r:%(FullPath)')" />
+      <_SharpDateIlcArg Include="--systemmodule:System.Private.CoreLib" />
+      <_SharpDateIlcArg Include="$(_SharpDateIlcOptimize)" />
+      <_SharpDateIlcArg Include="--nativelib" />
+      <_SharpDateIlcArg Include="--reflectiondata:none" />
+      <_SharpDateIlcArg Include="--generateunmanagedentrypoints:System.Private.CoreLib,HIDDEN" />
+      <_SharpDateIlcArg Include="--generateunmanagedentrypoints:SharpDate" />
+      <!-- The game is only reachable through its [ModuleInitializer], so keep the whole assembly. -->
+      <_SharpDateIlcArg Include="--root:$(AssemblyName)" />
+      <_SharpDateIlcArg Include="@(SharpDateIlcArg)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- ILC for each Simulator architecture -->
+  <Target Name="_SharpDateIlcSimulator"
+          DependsOnTargets="_SharpDateIlcCommon"
+          Condition="'$(SharpDateBuildSimulator)' == 'true'"
+          Inputs="@(IntermediateAssembly);@(ReferencePath)"
+          Outputs="$(_SharpDateObjDir)sim-%(_SharpDateSimArch.Identity)/game.o">
+    <PropertyGroup>
+      <_SharpDateArch>%(_SharpDateSimArch.Identity)</_SharpDateArch>
+      <_SharpDateRsp>$(_SharpDateObjDir)sim-$(_SharpDateArch)/ilc.rsp</_SharpDateRsp>
+    </PropertyGroup>
+    <MakeDir Directories="$(_SharpDateObjDir)sim-$(_SharpDateArch)" />
+    <WriteLinesToFile File="$(_SharpDateRsp)" Overwrite="true"
+                      Lines="@(_SharpDateIlcArg);--targetos:$(_SharpDateIlcOs);--targetarch:$(_SharpDateArch);-o:$(_SharpDateObjDir)sim-$(_SharpDateArch)/game.o" />
+    <Message Importance="high" Text="SharpDate: compiling $(AssemblyName) for the Simulator ($(_SharpDateArch))" />
+    <Exec Command="&quot;$(SharpDateIlcPath)&quot; @&quot;$(_SharpDateRsp)&quot;" />
+  </Target>
+
+  <!-- ILC for the device: 32-bit ARM, hard-float ELF -->
+  <Target Name="_SharpDateIlcDevice"
+          DependsOnTargets="_SharpDateIlcCommon"
+          Condition="'$(SharpDateBuildDevice)' == 'true'"
+          Inputs="@(IntermediateAssembly);@(ReferencePath)"
+          Outputs="$(_SharpDateObjDir)device/game.o">
+    <MakeDir Directories="$(_SharpDateObjDir)device" />
+    <WriteLinesToFile File="$(_SharpDateObjDir)device/ilc.rsp" Overwrite="true"
+                      Lines="@(_SharpDateIlcArg);--targetos:linux;--targetarch:arm;-o:$(_SharpDateObjDir)device/game.o" />
+    <Message Importance="high" Text="SharpDate: compiling $(AssemblyName) for the Playdate device (Cortex-M7)" />
+    <Exec Command="&quot;$(SharpDateIlcPath)&quot; @&quot;$(_SharpDateObjDir)device/ilc.rsp&quot;" />
+  </Target>
+
+  <!-- Link the Simulator library -->
+  <Target Name="_SharpDateLinkSimulator"
+          DependsOnTargets="_SharpDateIlcSimulator"
+          Condition="'$(SharpDateBuildSimulator)' == 'true'"
+          Inputs="@(_SharpDateSimArch->'$(_SharpDateObjDir)sim-%(Identity)/game.o');@(_SharpDateRuntimeSources)"
+          Outputs="$(_SharpDateObjDir)$(_SharpDateSimLibName)">
+    <PropertyGroup>
+      <_SharpDateSimFlags>-O2 -I &quot;$(PlaydateSDKPath)C_API&quot; -DTARGET_SIMULATOR=1 -DTARGET_EXTENSION=1</_SharpDateSimFlags>
+      <_SharpDateSimShared>-dynamiclib -Wl,-dead_strip</_SharpDateSimShared>
+      <_SharpDateSimShared Condition="$(_SharpDateIsLinux)">-shared -fPIC -Wl,--gc-sections</_SharpDateSimShared>
+    </PropertyGroup>
+    <ItemGroup>
+      <_SharpDateSimLib Include="@(_SharpDateSimArch->'$(_SharpDateObjDir)sim-%(Identity)/$(_SharpDateSimLibName)')" />
+    </ItemGroup>
+    <Exec Condition="$(_SharpDateIsMac)"
+          Command="$(SharpDateHostCC) -arch %(_SharpDateSimArch.ClangArch) $(_SharpDateSimShared) $(_SharpDateSimFlags) -o &quot;$(_SharpDateObjDir)sim-%(_SharpDateSimArch.Identity)/$(_SharpDateSimLibName)&quot; &quot;$(_SharpDateObjDir)sim-%(_SharpDateSimArch.Identity)/game.o&quot; &quot;$(_SharpDateRuntimeDir)sdrt.c&quot; &quot;%(_SharpDateSimArch.Stubs)&quot;" />
+    <Exec Condition="$(_SharpDateIsLinux)"
+          Command="$(SharpDateHostCC) $(_SharpDateSimShared) $(_SharpDateSimFlags) -o &quot;$(_SharpDateObjDir)sim-%(_SharpDateSimArch.Identity)/$(_SharpDateSimLibName)&quot; &quot;$(_SharpDateObjDir)sim-%(_SharpDateSimArch.Identity)/game.o&quot; &quot;$(_SharpDateRuntimeDir)sdrt.c&quot; &quot;%(_SharpDateSimArch.Stubs)&quot; -lm -lpthread" />
+    <Exec Condition="$(_SharpDateIsMac)" Command="lipo -create @(_SharpDateSimLib->'&quot;%(Identity)&quot;', ' ') -output &quot;$(_SharpDateObjDir)$(_SharpDateSimLibName)&quot;" />
+    <Copy Condition="!$(_SharpDateIsMac)" SourceFiles="@(_SharpDateSimLib)" DestinationFiles="$(_SharpDateObjDir)$(_SharpDateSimLibName)" />
+  </Target>
+
+  <!-- Compile the runtime with the Playdate toolchain and link pdex.elf -->
+  <Target Name="_SharpDateLinkDevice"
+          DependsOnTargets="_SharpDateIlcDevice"
+          Condition="'$(SharpDateBuildDevice)' == 'true'"
+          Inputs="$(_SharpDateObjDir)device/game.o;@(_SharpDateRuntimeSources)"
+          Outputs="$(_SharpDateObjDir)device/pdex.elf">
+    <PropertyGroup>
+      <_SharpDateMcu>-mthumb -mcpu=cortex-m7 -mfloat-abi=hard -mfpu=fpv5-sp-d16 -D__FPU_USED=1</_SharpDateMcu>
+      <_SharpDateDevFlags>$(_SharpDateMcu) -g3 -O2 -falign-functions=16 -fomit-frame-pointer -DTARGET_PLAYDATE=1 -DTARGET_EXTENSION=1 -mword-relocations -fno-common -ffunction-sections -fdata-sections -I &quot;$(PlaydateSDKPath)C_API&quot;</_SharpDateDevFlags>
+      <_SharpDateDevDir>$(_SharpDateObjDir)device/</_SharpDateDevDir>
+    </PropertyGroup>
+    <Exec Command="&quot;$(SharpDateArmGcc)&quot; -c $(_SharpDateDevFlags) &quot;$(_SharpDateRuntimeDir)sdrt.c&quot; -o &quot;$(_SharpDateDevDir)sdrt.o&quot;" />
+    <Exec Command="&quot;$(SharpDateArmGcc)&quot; -c $(_SharpDateDevFlags) &quot;$(PlaydateSDKPath)C_API/buildsupport/setup.c&quot; -o &quot;$(_SharpDateDevDir)setup.o&quot;" />
+    <Exec Command="&quot;$(SharpDateArmGcc)&quot; -c $(_SharpDateMcu) &quot;$(_SharpDateRuntimeDir)sdrt_thumb2.S&quot; -o &quot;$(_SharpDateDevDir)sdrt_thumb2.o&quot;" />
+    <Exec Command="&quot;$(SharpDateArmGcc)&quot; -g3 &quot;$(_SharpDateDevDir)setup.o&quot; &quot;$(_SharpDateDevDir)sdrt.o&quot; &quot;$(_SharpDateDevDir)sdrt_thumb2.o&quot; &quot;$(_SharpDateDevDir)game.o&quot; -nostartfiles $(_SharpDateMcu) -T&quot;$(_SharpDateRuntimeDir)link_map.ld&quot; -Wl,-Map=&quot;$(_SharpDateDevDir)pdex.map&quot;,--cref,--gc-sections,--no-warn-mismatch,--emit-relocs -o &quot;$(_SharpDateDevDir)pdex.elf&quot;" />
+    <CallTarget Targets="_SharpDateCheckDoubles" />
+  </Target>
+
+  <!--
+    The Playdate's FPU is single precision: double-precision instructions in managed code fault on
+    the device. Warn about methods that contain them so they can be changed to float.
+  -->
+  <Target Name="_SharpDateCheckDoubles" Condition="'$(SharpDateCheckDoubles)' != 'false'">
+    <Exec Command="&quot;$(_SharpDateArmObjdump)&quot; -d --no-show-raw-insn &quot;$(_SharpDateObjDir)device/game.o&quot; | awk '/^[0-9a-f]+ &lt;/ { fn = $2 } /\.f64|vcvt\.f32\.f64|vcvt\.f64/ { if (!(fn in seen)) { seen[fn] = 1; print fn } }'"
+          ConsoleToMSBuild="true" StandardOutputImportance="low" IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" ItemName="_SharpDateDoubleMethods" />
+    </Exec>
+    <Warning Condition="'@(_SharpDateDoubleMethods)' != ''"
+             Text="These methods use double-precision math, which is not supported by the Playdate device's FPU and will crash there (use float/MathF): @(_SharpDateDoubleMethods, ', ')" />
+  </Target>
+
+  <!-- Stage assets + native code and run pdc -->
+  <Target Name="SharpDatePdx"
+          AfterTargets="Build"
+          Condition="'$(IsPlaydateGame)' == 'true'"
+          DependsOnTargets="_SharpDateLinkSimulator;_SharpDateLinkDevice">
+    <ItemGroup>
+      <_SharpDateAsset Include="$(PlaydateSourceDir)/**/*" Condition="Exists('$(PlaydateSourceDir)')" />
+    </ItemGroup>
+    <RemoveDir Directories="$(_SharpDateStageDir)" />
+    <Copy SourceFiles="@(_SharpDateAsset)" DestinationFiles="@(_SharpDateAsset->'$(_SharpDateStageDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <WriteLinesToFile Condition="!Exists('$(PlaydateSourceDir)/pdxinfo')"
+                      File="$(_SharpDateStageDir)pdxinfo" Overwrite="true"
+                      Lines="name=$(PlaydateGameName);author=$(PlaydateAuthor);description=$(PlaydateDescription);bundleID=$(PlaydateBundleId);version=$(PlaydateVersion);buildNumber=$(PlaydateBuildNumber)" />
+    <Copy Condition="'$(SharpDateBuildSimulator)' == 'true'" SourceFiles="$(_SharpDateObjDir)$(_SharpDateSimLibName)" DestinationFolder="$(_SharpDateStageDir)" />
+    <Copy Condition="'$(SharpDateBuildDevice)' == 'true'" SourceFiles="$(_SharpDateObjDir)device/pdex.elf" DestinationFolder="$(_SharpDateStageDir)" />
+    <RemoveDir Directories="$(PlaydatePdxPath)" />
+    <Exec Command="&quot;$(_SharpDatePdc)&quot; &quot;$(_SharpDateStageDir.TrimEnd('/'))&quot; &quot;$(PlaydatePdxPath)&quot;" />
+    <Message Importance="high" Text="$(MSBuildProjectName) -> $(PlaydatePdxPath)" />
+  </Target>
+
+  <!-- dotnet build -t:Run  launches the Simulator with the game -->
+  <Target Name="Run" DependsOnTargets="Build">
+    <Exec Condition="$(_SharpDateIsMac)" Command="open -a &quot;$(PlaydateSDKPath)bin/Playdate Simulator.app&quot; &quot;$(PlaydatePdxPath)&quot;" />
+    <Exec Condition="$(_SharpDateIsLinux)" Command="&quot;$(PlaydateSDKPath)bin/PlaydateSimulator&quot; &quot;$(PlaydatePdxPath)&quot; &amp;" />
+  </Target>
+
+  <Target Name="_SharpDateClean" AfterTargets="Clean">
+    <RemoveDir Directories="$(_SharpDateObjDir);$(PlaydatePdxPath)" />
+  </Target>
+</Project>

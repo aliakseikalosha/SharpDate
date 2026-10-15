@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Compiles a project against SharpDate.CoreLib (the Playdate runtime's System.Private.CoreLib)
+    instead of the .NET base class library.
+  -->
+  <PropertyGroup>
+    <SharpDateRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..'))</SharpDateRoot>
+    <SharpDateCoreLibProject>$(SharpDateRoot)src/SharpDate.CoreLib/SharpDate.CoreLib.csproj</SharpDateCoreLibProject>
+    <NoStdLib>true</NoStdLib>
+    <NoCompilerStandardLib>true</NoCompilerStandardLib>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <RuntimeMetadataVersion>v4.0.30319</RuntimeMetadataVersion>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(SharpDateCoreLibProject)" Condition="'$(MSBuildProjectFullPath)' != '$(SharpDateCoreLibProject)'">
+      <Private>true</Private>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

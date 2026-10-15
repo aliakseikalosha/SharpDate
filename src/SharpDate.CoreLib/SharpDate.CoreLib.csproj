@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SharpDate.CoreLib: a small, self-contained System.Private.CoreLib used by the "Zero" runtime profile.
+    It replaces the .NET base class library when a game is compiled for the Playdate device (ARM Cortex-M7)
+    and for the Simulator in the same profile. ILC compiles game code against this library instead of the
+    full framework; the matching native half of the runtime lives in src/SharpDate.Runtime.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>System.Private.CoreLib</AssemblyName>
+    <RootNamespace>System</RootNamespace>
+    <NoStdLib>true</NoStdLib>
+    <NoCompilerStandardLib>true</NoCompilerStandardLib>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <RuntimeMetadataVersion>v4.0.30319</RuntimeMetadataVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <Optimize>true</Optimize>
+    <Deterministic>true</Deterministic>
+    <!-- CS0169/CS0649: runtime-contract fields are written by the compiler/runtime, not by C# code. -->
+    <NoWarn>$(NoWarn);CS0169;CS0649;CS0660;CS0661;CS8500;CS3021;CS0626;CS8981;CS1718</NoWarn>
+  </PropertyGroup>
+
+</Project>

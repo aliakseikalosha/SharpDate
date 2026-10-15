@@ -1,0 +1,40 @@
+<Project>
+  <!--
+    SharpDate game project defaults. Import this from a Directory.Build.props (or at the top of a
+    game .csproj) and SharpDate.Game.targets from a Directory.Build.targets (or at the bottom).
+
+    A game project is a normal C# class library compiled against SharpDate.CoreLib; after `dotnet build`
+    the targets turn it into a Playdate .pdx containing:
+      - pdex.dylib/.so : native code for the Playdate Simulator
+      - pdex.bin       : native code for the Playdate device (Cortex-M7)
+  -->
+
+  <Import Project="$(MSBuildThisFileDirectory)SharpDate.CoreLib.props" />
+
+  <PropertyGroup>
+    <IsPlaydateGame>true</IsPlaydateGame>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- CA2255: games register themselves with [ModuleInitializer] by design. -->
+    <NoWarn>$(NoWarn);CA2255</NoWarn>
+
+    <!-- Folder with pdxinfo, images, sounds, fonts, Lua sources... copied into the pdx. -->
+    <PlaydateSourceDir>$(MSBuildProjectDirectory)/Source</PlaydateSourceDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(SharpDateRoot)src/SharpDate/SharpDate.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="Playdate" />
+  </ItemGroup>
+</Project>

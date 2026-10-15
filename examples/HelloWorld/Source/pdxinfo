@@ -1,0 +1,5 @@
+name=Hello World C#
+author=SharpDate
+description=A small demo of the C# API (port of the SDK's C Hello World)
+bundleID=dev.sharpdate.helloworld
+imagePath=

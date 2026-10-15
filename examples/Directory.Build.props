@@ -1,0 +1,4 @@
+<Project>
+  <!-- Every project under examples/ is a SharpDate game. -->
+  <Import Project="../build/SharpDate.Game.props" />
+</Project>

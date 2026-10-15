@@ -1,0 +1,9 @@
+bin/
+obj/
+*.pdx/
+*-capture.png
+.DS_Store
+.vs/
+.vscode/
+.idea/
+*.user

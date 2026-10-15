@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SharpDate: C# bindings for the Playdate C API.
+    Compiled against SharpDate.CoreLib so the same assembly runs in the Simulator and on the device.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>SharpDate</AssemblyName>
+    <RootNamespace>Playdate</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS8500</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)../../build/SharpDate.CoreLib.props" />
+
+</Project>
