@@ -89,7 +89,10 @@ def remove_apple_double(path):
         os.remove(sidecar)
 
 
-def mount(serial):
+def mount(serial=None):
+    if serial is None or not os.path.exists(serial):
+        serial = wait_for(find_serial, 60, "the Playdate serial port")
+        time.sleep(1)
     pdutil(serial, "datadisk")
     return wait_for(lambda: next((m for m in mount_points() if os.path.isdir(os.path.join(m, "Games"))), None), 60, "the Playdate data disk to mount")
 
@@ -131,6 +134,14 @@ def main():
         shutil.rmtree(target)
     remove_apple_double(target)
     copy_tree(pdx, target)
+    if platform.system() == "Darwin":
+        # macOS writes ._ AppleDouble files for attributes it adds on FAT volumes; drop them.
+        subprocess.run(["dot_clean", "-m", target])
+        for root, dirs, files in os.walk(target):
+            for f in files:
+                if f.startswith("._"):
+                    os.remove(os.path.join(root, f))
+        remove_apple_double(target)
 
     if bundle:
         data_dir = os.path.join(volume, "Data", bundle)
